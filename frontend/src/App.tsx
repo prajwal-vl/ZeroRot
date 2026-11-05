@@ -20,6 +20,7 @@ import { PreservationModuleTab } from './components/PreservationModuleTab';
 import { ScenarioBuilderTab } from './components/ScenarioBuilderTab';
 import { SimulationHistoryTab } from './components/SimulationHistoryTab';
 import { PriceIntelligenceView } from './components/PriceIntelligenceView';
+import { SupplyChainTab } from './components/SupplyChainTab';
 import { SimulationState } from './types/simulation';
 import { api, User } from './services/api';
 import { FlaskConical, ArrowLeft } from 'lucide-react';
@@ -321,6 +322,10 @@ export const App: React.FC = () => {
                     simpleMode={simpleMode}
                     onRefreshState={fetchState}
                   />
+                )}
+
+                {currentSection === 'supply_chain' && (
+                  <SupplyChainTab />
                 )}
 
                 {currentSection === 'batch_management' && (

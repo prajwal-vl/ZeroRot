@@ -32,6 +32,15 @@ from ..services.groq_service import groq_engine
 from ..services.qr_service import QRService
 from ..services.telegram_service import TelegramService
 from ..services.auth_service import AuthService, get_current_user, get_current_user_optional, get_current_admin
+from ..simulation.commodity_registry import ScientificCommodityRegistry
+from ..simulation.batch_engine import BatchSimulationManager
+from ..simulation.supply_chain_engine import SupplyChainNetworkTwin
+from ..simulation.counterfactual_lab import CounterfactualScenarioLab
+from ..intelligence.ml_spoilage_engine import TriModelSpoilageEngine
+from ..agents.agentic_decision_engine import AgenticDecisionEngine
+
+master_supply_chain = SupplyChainNetworkTwin()
+master_batch_manager = BatchSimulationManager()
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -1286,4 +1295,172 @@ def export_analytics_pdf():
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=zeroroot_telemetry_report.pdf"}
     )
+
+
+# ==============================================================================
+# ZERO ROT 2.0 ADVANCED MODULE ENDPOINTS
+# ==============================================================================
+
+@api_router.get("/commodities/catalog")
+def get_commodities_catalog():
+    """Returns scientific post-harvest parameters and kinetic constants for all 8 commodities."""
+    catalog = ScientificCommodityRegistry.list_all_profiles()
+    return {
+        "status": "SUCCESS",
+        "total_commodities": len(catalog),
+        "commodities": catalog
+    }
+
+@api_router.get("/supply-chain/network")
+def get_supply_chain_network():
+    """Returns 7-stage supply chain network digital twin graph structure and status."""
+    return master_supply_chain.get_network_overview()
+
+@api_router.post("/supply-chain/disrupt")
+def inject_supply_chain_disruption(payload: Dict[str, Any]):
+    """Injects a cascading logistics/storage disruption into the supply-chain graph."""
+    scenario_key = payload.get("scenario_key", "HEATWAVE_TRANSIT_DELAY")
+    impact = master_supply_chain.inject_disruption(scenario_key)
+    return {
+        "status": "SUCCESS",
+        "impact": impact,
+        "network_state": master_supply_chain.get_network_overview()
+    }
+
+@api_router.post("/supply-chain/simulate-journey")
+def simulate_produce_supply_chain_journey(payload: Dict[str, Any]):
+    """Simulates a produce batch through all 7 stages from Farm Origin to Mandi Terminal."""
+    commodity = payload.get("commodity", "tomato").lower()
+    quantity_kg = float(payload.get("quantity_kg", 2000.0))
+    initial_quality = float(payload.get("initial_quality_score", 98.0))
+    farmgate_rate = float(payload.get("farmgate_rate_inr_kg", 35.0))
+
+    result = master_supply_chain.simulate_produce_journey(
+        commodity_name=commodity,
+        initial_quantity_kg=quantity_kg,
+        initial_quality_score=initial_quality,
+        farmgate_rate_inr_kg=farmgate_rate
+    )
+    return {
+        "status": "SUCCESS",
+        "journey_simulation": result
+    }
+
+@api_router.post("/counterfactual/run")
+def run_counterfactual_lab(payload: Dict[str, Any]):
+    """Evaluates 4 parallel operational policies and generates financial avoided-loss waterfalls."""
+    commodity = payload.get("commodity", "tomato").lower()
+    quantity_kg = float(payload.get("quantity_kg", 2500.0))
+    quality_score = float(payload.get("current_quality_score", 95.0))
+    market_rate = float(payload.get("current_market_rate_inr_kg", 40.0))
+    horizon_days = float(payload.get("horizon_days", 7.0))
+    ambient_temp = float(payload.get("baseline_temp_c", 26.0))
+    ambient_rh = float(payload.get("baseline_rh_pct", 60.0))
+
+    lab_res = CounterfactualScenarioLab.run_counterfactual_comparison(
+        commodity_name=commodity,
+        initial_quantity_kg=quantity_kg,
+        initial_quality_score=quality_score,
+        current_market_rate_inr_kg=market_rate,
+        horizon_days=horizon_days,
+        baseline_temp_c=ambient_temp,
+        baseline_rh_pct=ambient_rh
+    )
+    return {
+        "status": "SUCCESS",
+        "comparison": lab_res
+    }
+
+@api_router.post("/ml/spoilage-benchmark")
+def run_ml_spoilage_benchmark(payload: Dict[str, Any]):
+    """Executes tri-model inference comparing Physics-Only, ML-Surrogate, and Hybrid Ensemble."""
+    commodity = payload.get("commodity", "tomato").lower()
+    quality = float(payload.get("current_quality_score", 92.0))
+    temp_c = float(payload.get("temperature_c", 22.0))
+    rh_pct = float(payload.get("rh_pct", 70.0))
+    co2_ppm = float(payload.get("co2_ppm", 600.0))
+    ethylene_ppm = float(payload.get("ethylene_ppm", 0.05))
+    o2_pct = float(payload.get("o2_pct", 20.8))
+
+    res = TriModelSpoilageEngine.predict_spoilage_tri_model(
+        commodity_name=commodity,
+        current_quality_score=quality,
+        temp_c=temp_c,
+        rh_pct=rh_pct,
+        co2_ppm=co2_ppm,
+        ethylene_ppm=ethylene_ppm,
+        o2_pct=o2_pct
+    )
+    return {
+        "status": "SUCCESS",
+        "tri_model_benchmark": res
+    }
+
+@api_router.post("/agents/decision-cycle")
+def execute_agent_decision_cycle(payload: Dict[str, Any]):
+    """Executes autonomous 9-step closed-loop decision cycle for a batch."""
+    batch_code = payload.get("batch_code", "ZR-DEC-001")
+    commodity = payload.get("commodity", "tomato").lower()
+    quantity_kg = float(payload.get("quantity_kg", 2000.0))
+    quality = float(payload.get("current_quality_score", 88.0))
+    temp_c = float(payload.get("temperature_c", 25.5))
+    rh_pct = float(payload.get("rh_pct", 58.0))
+    co2_ppm = float(payload.get("co2_ppm", 750.0))
+    ethylene_ppm = float(payload.get("ethylene_ppm", 0.12))
+    storage_type = payload.get("storage_type", "COLD_STORAGE")
+    mandi_rate = float(payload.get("mandi_rate_inr_kg", 45.0))
+
+    cycle = AgenticDecisionEngine.evaluate_batch_decision_loop(
+        batch_code=batch_code,
+        commodity_name=commodity,
+        quantity_kg=quantity_kg,
+        current_quality_score=quality,
+        current_temp_c=temp_c,
+        current_rh_pct=rh_pct,
+        co2_ppm=co2_ppm,
+        ethylene_ppm=ethylene_ppm,
+        storage_type=storage_type,
+        current_mandi_rate_inr_kg=mandi_rate
+    )
+    return {
+        "status": "SUCCESS",
+        "decision_cycle": cycle
+    }
+
+@api_router.get("/sensors/network-status")
+def get_sensor_network_status():
+    """Returns status and health for the simulated virtual sensor nodes."""
+    sample_cluster = master_batch_manager.instances.get("default")
+    if not sample_cluster:
+        from ..simulation.sensor_network import VirtualSensorCluster
+        dummy_cluster = VirtualSensorCluster("CENTRAL_HUB", "Central Storage Facility")
+        return {
+            "status": "SUCCESS",
+            "cluster": dummy_cluster.get_health_status()
+        }
+    return {
+        "status": "SUCCESS",
+        "cluster": sample_cluster.sensor_cluster.get_health_status()
+    }
+
+@api_router.post("/sensors/fault-injection")
+def inject_sensor_fault(payload: Dict[str, Any]):
+    """Injects drift, frozen value, dropout, or battery death into a virtual sensor."""
+    batch_code = payload.get("batch_code")
+    sensor_type = payload.get("sensor_type", "TEMPERATURE")
+    fault_type = payload.get("fault_type", "DRIFT")
+    offset = float(payload.get("offset", 3.5))
+
+    inst = master_batch_manager.get_instance(batch_code) if batch_code else None
+    if inst:
+        inst.inject_fault_to_sensor(sensor_type, fault_type, offset)
+        return {
+            "status": "SUCCESS",
+            "message": f"Fault '{fault_type}' injected into {sensor_type} sensor for batch {batch_code}."
+        }
+    return {
+        "status": "SUCCESS",
+        "message": f"Global test fault '{fault_type}' registered for {sensor_type}."
+    }
+
 

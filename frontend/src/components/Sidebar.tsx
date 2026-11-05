@@ -20,6 +20,8 @@ import {
 export type MainNavSection =
   | 'overview'
   | 'digital_twin'
+  | 'post_harvest'
+  | 'supply_chain'
   | 'batch_management'
   | 'transportation'
   | 'predictions'
@@ -31,7 +33,6 @@ export type MainNavSection =
   | 'history'
   | 'settings'
   // Legacy aliases for backward compatibility
-  | 'post_harvest'
   | 'cold_chain'
   | 'market_reports';
 
@@ -78,6 +79,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Post-Harvest Storage',
           description: 'Traditional vs Cold Storage',
           icon: Layers,
+        },
+        {
+          key: 'supply_chain',
+          label: 'Supply Chain Network',
+          description: '7-stage ISOMORPH network twin',
+          icon: Activity,
         },
         {
           key: 'batch_management',
