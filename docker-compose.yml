@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  zeroroot-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zeroroot-platform
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://zeroroot_user:zeroroot_pass@postgres:5432/zeroroot_db
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: zeroroot-postgres
+    environment:
+      POSTGRES_USER: zeroroot_user
+      POSTGRES_PASSWORD: zeroroot_pass
+      POSTGRES_DB: zeroroot_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
