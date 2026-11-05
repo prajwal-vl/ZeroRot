@@ -67,10 +67,14 @@ export const DigitalTwinTab: React.FC<DigitalTwinTabProps> = ({
       {/* SaaS Blue Top Banner */}
       <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE]">
               <Warehouse className="w-3.5 h-3.5 text-[#2563EB]" />
               3D DIGITAL TWIN &amp; SIMULATION
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              HACKATHON PRODUCT NARRATIVE MODE
             </span>
             <DataBadge label="SIMULATED" sourceText="High-Fidelity Three.js WebGL Engine" />
           </div>
@@ -78,7 +82,7 @@ export const DigitalTwinTab: React.FC<DigitalTwinTabProps> = ({
             Cold Storage Warehouse Digital Twin
           </h2>
           <p className="text-sm text-[#64748B] mt-1 max-w-2xl">
-            Interactive 3D virtual replica of the multi-zone cold storage warehouse featuring native Three.js WebGL spatial exploration, industrial pallet racking, 5 fruit storage bays, animated logistics machinery, procedural produce decay shaders, live thermal heatmaps, and microclimate telemetry overlays.
+            Interactive 3D virtual replica of the multi-zone cold storage warehouse. Includes a 5-step guided hackathon story walkthrough demonstrating post-harvest loss prevention, Biot internal thermal conduction, failure injection, and autonomous agent interventions.
           </p>
         </div>
 

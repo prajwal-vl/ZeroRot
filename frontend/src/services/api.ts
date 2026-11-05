@@ -569,4 +569,26 @@ export const api = {
     }
     return res.json();
   },
+
+  // ----------------- AGENT INTERVENTIONS -----------------
+  async applyAgentIntervention(data: {
+    batch_id: string;
+    option_key: 'OPT_CLIMATE_OPTIMIZE' | 'OPT_EXPEDITE_MANDI' | 'OPT_AGRO_PROCESSING';
+    actor_id?: string;
+    override_reason?: string;
+  }) {
+    const res = await fetch(`${API_BASE}/agents/interventions/apply`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to apply agent intervention' }));
+      throw new Error(err.detail || 'Failed to apply agent intervention');
+    }
+    return res.json();
+  },
 };
