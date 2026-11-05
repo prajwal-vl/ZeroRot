@@ -17,7 +17,10 @@ import {
   CheckCircle2,
   X,
   Compass,
-  Activity
+  Activity,
+  Box,
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 import { SimulationState } from '../../types/simulation';
 
@@ -39,7 +42,10 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
   simulationState,
   onRefreshState,
 }) => {
-  // Camera perspective state
+  // Model source state: 'sketchfab' (Photorealistic 3D Warehouse) or 'three' (Thermal & Airflow Sensor Twin)
+  const [modelSource, setModelSource] = useState<'sketchfab' | 'three'>('sketchfab');
+
+  // Camera perspective state for Three.js engine
   const [cameraView, setCameraView] = useState<'overview' | 'chamber_a' | 'chamber_b' | 'chamber_c' | 'loading_dock' | 'top_down'>('overview');
   const [showHeatmap, setShowHeatmap] = useState<boolean>(false);
   const [showAirflow, setShowAirflow] = useState<boolean>(true);
@@ -81,214 +87,302 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
   const currentCam = cameraPresets[cameraView] || cameraPresets.overview;
 
   return (
-    <div className="relative w-full h-[620px] bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-md">
-      {/* 1. Main Three.js R3F Canvas */}
-      <Canvas
-        shadows
-        camera={{ position: [22, 17, 24], fov: 46 }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
-      >
-        <CameraController targetPosition={currentCam.pos} targetLookAt={currentCam.lookAt} />
-        <OrbitControls
-          makeDefault
-          maxPolarAngle={Math.PI / 2 - 0.05}
-          minDistance={5}
-          maxDistance={60}
-          dampingFactor={0.05}
-        />
-
-        {/* Ambient & Directional Lighting */}
-        <ambientLight intensity={0.75} color="#E0F2FE" />
-        <directionalLight
-          position={[18, 28, 20]}
-          intensity={1.2}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-        />
-        <pointLight position={[0, 9, 0]} intensity={0.5} color="#93C5FD" />
-
-        {/* Warehouse Walls, Floor & Evaporator Architecture */}
-        <WarehouseArchitecture
-          chamberA={chamberA}
-          chamberB={chamberB}
-          chamberC={chamberC}
-        />
-
-        {/* Chamber A Racks (Mangoes & Bananas) */}
-        <StorageRack
-          position={[-16, 0, -8]}
-          rackId="RACK-A1"
-          chamberName="Chamber A (Tropical)"
-          commodity="mango"
-          qualityScore={chamberA.quality}
-          temperatureC={chamberA.tempC}
-          humidityPct={chamberA.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-A1'}
-          onSelect={setSelectedZone}
-        />
-        <StorageRack
-          position={[-12, 0, -8]}
-          rackId="RACK-A2"
-          chamberName="Chamber A (Tropical)"
-          commodity="banana"
-          qualityScore={chamberA.quality - 2}
-          temperatureC={chamberA.tempC}
-          humidityPct={chamberA.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-A2'}
-          onSelect={setSelectedZone}
-        />
-        <StorageRack
-          position={[-14, 0, 2]}
-          rackId="RACK-A3"
-          chamberName="Chamber A (Tropical)"
-          commodity="banana"
-          qualityScore={chamberA.quality}
-          temperatureC={chamberA.tempC}
-          humidityPct={chamberA.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-A3'}
-          onSelect={setSelectedZone}
-        />
-
-        {/* Chamber B Racks (Tomatoes & Apples) */}
-        <StorageRack
-          position={[-2, 0, -8]}
-          rackId="RACK-B1"
-          chamberName="Chamber B (Solanaceous)"
-          commodity="tomato"
-          qualityScore={chamberB.quality}
-          temperatureC={chamberB.tempC}
-          humidityPct={chamberB.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-B1'}
-          onSelect={setSelectedZone}
-        />
-        <StorageRack
-          position={[2, 0, -8]}
-          rackId="RACK-B2"
-          chamberName="Chamber B (Solanaceous)"
-          commodity="apple"
-          qualityScore={chamberB.quality + 2}
-          temperatureC={chamberB.tempC}
-          humidityPct={chamberB.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-B2'}
-          onSelect={setSelectedZone}
-        />
-        <StorageRack
-          position={[0, 0, 2]}
-          rackId="RACK-B3"
-          chamberName="Chamber B (Solanaceous)"
-          commodity="tomato"
-          qualityScore={chamberB.quality}
-          temperatureC={chamberB.tempC}
-          humidityPct={chamberB.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-B3'}
-          onSelect={setSelectedZone}
-        />
-
-        {/* Chamber C Racks (Potatoes & Grapes) */}
-        <StorageRack
-          position={[12, 0, -8]}
-          rackId="RACK-C1"
-          chamberName="Chamber C (Controlled Atm)"
-          commodity="potato"
-          qualityScore={chamberC.quality}
-          temperatureC={chamberC.tempC}
-          humidityPct={chamberC.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-C1'}
-          onSelect={setSelectedZone}
-        />
-        <StorageRack
-          position={[16, 0, -8]}
-          rackId="RACK-C2"
-          chamberName="Chamber C (Controlled Atm)"
-          commodity="grape"
-          qualityScore={chamberC.quality - 1}
-          temperatureC={chamberC.tempC}
-          humidityPct={chamberC.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-C2'}
-          onSelect={setSelectedZone}
-        />
-        <StorageRack
-          position={[14, 0, 2]}
-          rackId="RACK-C3"
-          chamberName="Chamber C (Controlled Atm)"
-          commodity="potato"
-          qualityScore={chamberC.quality}
-          temperatureC={chamberC.tempC}
-          humidityPct={chamberC.rhPct}
-          isSelected={selectedZone?.rackId === 'RACK-C3'}
-          onSelect={setSelectedZone}
-        />
-
-        {/* Airflow Particles Animation */}
-        {showAirflow && <AirflowParticles speed={simulationState?.sim_speed || 1} />}
-
-        {/* Dynamic Thermal Heatmap Layer */}
-        <ThermalHeatmap
-          chamberA_temp={chamberA.tempC}
-          chamberB_temp={chamberB.tempC}
-          chamberC_temp={chamberC.tempC}
-          visible={showHeatmap}
-        />
-      </Canvas>
-
-      {/* 2. Top-Left: Camera Perspective Quick Switcher */}
-      <div className="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-1.5 bg-slate-900/85 backdrop-blur-md p-1.5 rounded-lg border border-slate-700 text-xs shadow-md">
-        <span className="text-[10px] text-slate-400 font-bold px-2 uppercase flex items-center gap-1">
-          <Compass className="w-3.5 h-3.5 text-blue-400" />
-          Camera:
-        </span>
-        {[
-          { key: 'overview', label: 'Overview' },
-          { key: 'chamber_a', label: 'Chamber A' },
-          { key: 'chamber_b', label: 'Chamber B' },
-          { key: 'chamber_c', label: 'Chamber C' },
-          { key: 'loading_dock', label: 'Dock' },
-          { key: 'top_down', label: 'Top-Down' },
-        ].map((btn) => (
+    <div className="relative w-full h-[640px] bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-md select-none">
+      {/* 1. Mode Switcher (Photorealistic Sketchfab vs Three.js Thermal Twin) */}
+      <div className="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1 rounded-lg border border-slate-700 text-xs shadow-lg">
           <button
-            key={btn.key}
-            onClick={() => setCameraView(btn.key as any)}
-            className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-              cameraView === btn.key
+            onClick={() => setModelSource('sketchfab')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              modelSource === 'sketchfab'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
           >
-            {btn.label}
+            <Box className="w-3.5 h-3.5" />
+            <span>Photorealistic 3D Warehouse (Sketchfab)</span>
           </button>
-        ))}
+
+          <button
+            onClick={() => setModelSource('three')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              modelSource === 'three'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Thermal &amp; Sensor Twin (Three.js)</span>
+          </button>
+        </div>
+
+        {/* Camera presets for Three.js engine */}
+        {modelSource === 'three' && (
+          <div className="hidden sm:flex items-center gap-1 bg-slate-900/85 backdrop-blur-md p-1 rounded-lg border border-slate-700 text-xs shadow-md">
+            <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase flex items-center gap-1">
+              <Compass className="w-3.5 h-3.5 text-blue-400" />
+              Cam:
+            </span>
+            {[
+              { key: 'overview', label: 'Overview' },
+              { key: 'chamber_a', label: 'Ch. A' },
+              { key: 'chamber_b', label: 'Ch. B' },
+              { key: 'chamber_c', label: 'Ch. C' },
+              { key: 'loading_dock', label: 'Dock' },
+              { key: 'top_down', label: 'Top' },
+            ].map((btn) => (
+              <button
+                key={btn.key}
+                onClick={() => setCameraView(btn.key as any)}
+                className={`px-2 py-1 rounded text-[11px] font-semibold transition-all ${
+                  cameraView === btn.key
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* 3. Top-Right: Heatmap & Airflow Visualization Toggles */}
+      {/* 2. Top-Right: Heatmap / Airflow Toggles or Sketchfab Status */}
       <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-        <button
-          onClick={() => setShowHeatmap((prev) => !prev)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5 backdrop-blur-md shadow-xs ${
-            showHeatmap
-              ? 'bg-emerald-600/90 text-white border-emerald-500'
-              : 'bg-slate-900/85 text-slate-300 border-slate-700 hover:bg-slate-800'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>3D Thermal Heatmap: {showHeatmap ? 'ON' : 'OFF'}</span>
-        </button>
+        {modelSource === 'sketchfab' ? (
+          <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-200 flex items-center gap-2 shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="font-semibold text-xs">Sketchfab 3D Model Active</span>
+            <span className="text-slate-400 text-[11px]">| Full 360° Orbit &amp; Zoom</span>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => setShowHeatmap((prev) => !prev)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5 backdrop-blur-md shadow-xs ${
+                showHeatmap
+                  ? 'bg-emerald-600/90 text-white border-emerald-500'
+                  : 'bg-slate-900/85 text-slate-300 border-slate-700 hover:bg-slate-800'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Thermal Heatmap: {showHeatmap ? 'ON' : 'OFF'}</span>
+            </button>
 
-        <button
-          onClick={() => setShowAirflow((prev) => !prev)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5 backdrop-blur-md shadow-xs ${
-            showAirflow
-              ? 'bg-blue-600/90 text-white border-blue-500'
-              : 'bg-slate-900/85 text-slate-300 border-slate-700 hover:bg-slate-800'
-          }`}
-        >
-          <Wind className="w-3.5 h-3.5" />
-          <span>Airflow: {showAirflow ? 'ON' : 'OFF'}</span>
-        </button>
+            <button
+              onClick={() => setShowAirflow((prev) => !prev)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5 backdrop-blur-md shadow-xs ${
+                showAirflow
+                  ? 'bg-blue-600/90 text-white border-blue-500'
+                  : 'bg-slate-900/85 text-slate-300 border-slate-700 hover:bg-slate-800'
+              }`}
+            >
+              <Wind className="w-3.5 h-3.5" />
+              <span>Airflow: {showAirflow ? 'ON' : 'OFF'}</span>
+            </button>
+          </>
+        )}
       </div>
 
-      {/* 4. Bottom-Left: Live Chamber Microclimate HUD */}
-      <div className="absolute bottom-4 left-4 z-20 hidden md:flex items-center gap-2 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 text-xs shadow-lg">
+      {/* 3. 3D Model Display Viewport */}
+      {modelSource === 'sketchfab' ? (
+        <div className="sketchfab-embed-wrapper w-full h-full relative bg-slate-950">
+          <iframe
+            title="Warehouse"
+            className="w-full h-full border-0"
+            allowFullScreen
+            allow="autoplay; fullscreen; xr-spatial-tracking"
+            xr-spatial-tracking="true"
+            execution-while-out-of-viewport="true"
+            execution-while-not-rendered="true"
+            web-share="true"
+            src="https://sketchfab.com/models/b14a00ce67b74e2cb21c9bd64215fbbd/embed?autostart=1&ui_theme=dark&dnt=1"
+          />
+
+          {/* Model Attribution Bar */}
+          <div className="absolute bottom-3 right-4 z-20 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] text-slate-400 border border-slate-700 shadow-md">
+            <a
+              href="https://sketchfab.com/3d-models/warehouse-b14a00ce67b74e2cb21c9bd64215fbbd"
+              target="_blank"
+              rel="noreferrer nofollow"
+              className="text-blue-400 font-bold hover:underline"
+            >
+              Warehouse 3D Model
+            </a>{' '}
+            by{' '}
+            <a
+              href="https://sketchfab.com/RamziSfeir"
+              target="_blank"
+              rel="noreferrer nofollow"
+              className="text-blue-400 font-semibold hover:underline"
+            >
+              Ramzi Sfeir
+            </a>{' '}
+            on{' '}
+            <a
+              href="https://sketchfab.com"
+              target="_blank"
+              rel="noreferrer nofollow"
+              className="text-blue-400 font-semibold hover:underline"
+            >
+              Sketchfab
+            </a>
+          </div>
+        </div>
+      ) : (
+        /* Three.js R3F WebGL Canvas */
+        <Canvas
+          shadows
+          camera={{ position: [22, 17, 24], fov: 46 }}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+        >
+          <CameraController targetPosition={currentCam.pos} targetLookAt={currentCam.lookAt} />
+          <OrbitControls
+            makeDefault
+            maxPolarAngle={Math.PI / 2 - 0.05}
+            minDistance={5}
+            maxDistance={60}
+            dampingFactor={0.05}
+          />
+
+          {/* Ambient & Directional Lighting */}
+          <ambientLight intensity={0.75} color="#E0F2FE" />
+          <directionalLight
+            position={[18, 28, 20]}
+            intensity={1.2}
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+          />
+          <pointLight position={[0, 9, 0]} intensity={0.5} color="#93C5FD" />
+
+          {/* Warehouse Walls, Floor & Evaporator Architecture */}
+          <WarehouseArchitecture
+            chamberA={chamberA}
+            chamberB={chamberB}
+            chamberC={chamberC}
+          />
+
+          {/* Chamber A Racks (Mangoes & Bananas) */}
+          <StorageRack
+            position={[-16, 0, -8]}
+            rackId="RACK-A1"
+            chamberName="Chamber A (Tropical)"
+            commodity="mango"
+            qualityScore={chamberA.quality}
+            temperatureC={chamberA.tempC}
+            humidityPct={chamberA.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-A1'}
+            onSelect={setSelectedZone}
+          />
+          <StorageRack
+            position={[-12, 0, -8]}
+            rackId="RACK-A2"
+            chamberName="Chamber A (Tropical)"
+            commodity="banana"
+            qualityScore={chamberA.quality - 2}
+            temperatureC={chamberA.tempC}
+            humidityPct={chamberA.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-A2'}
+            onSelect={setSelectedZone}
+          />
+          <StorageRack
+            position={[-14, 0, 2]}
+            rackId="RACK-A3"
+            chamberName="Chamber A (Tropical)"
+            commodity="banana"
+            qualityScore={chamberA.quality}
+            temperatureC={chamberA.tempC}
+            humidityPct={chamberA.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-A3'}
+            onSelect={setSelectedZone}
+          />
+
+          {/* Chamber B Racks (Tomatoes & Apples) */}
+          <StorageRack
+            position={[-2, 0, -8]}
+            rackId="RACK-B1"
+            chamberName="Chamber B (Solanaceous)"
+            commodity="tomato"
+            qualityScore={chamberB.quality}
+            temperatureC={chamberB.tempC}
+            humidityPct={chamberB.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-B1'}
+            onSelect={setSelectedZone}
+          />
+          <StorageRack
+            position={[2, 0, -8]}
+            rackId="RACK-B2"
+            chamberName="Chamber B (Solanaceous)"
+            commodity="apple"
+            qualityScore={chamberB.quality + 2}
+            temperatureC={chamberB.tempC}
+            humidityPct={chamberB.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-B2'}
+            onSelect={setSelectedZone}
+          />
+          <StorageRack
+            position={[0, 0, 2]}
+            rackId="RACK-B3"
+            chamberName="Chamber B (Solanaceous)"
+            commodity="tomato"
+            qualityScore={chamberB.quality}
+            temperatureC={chamberB.tempC}
+            humidityPct={chamberB.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-B3'}
+            onSelect={setSelectedZone}
+          />
+
+          {/* Chamber C Racks (Potatoes & Grapes) */}
+          <StorageRack
+            position={[12, 0, -8]}
+            rackId="RACK-C1"
+            chamberName="Chamber C (Controlled Atm)"
+            commodity="potato"
+            qualityScore={chamberC.quality}
+            temperatureC={chamberC.tempC}
+            humidityPct={chamberC.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-C1'}
+            onSelect={setSelectedZone}
+          />
+          <StorageRack
+            position={[16, 0, -8]}
+            rackId="RACK-C2"
+            chamberName="Chamber C (Controlled Atm)"
+            commodity="grape"
+            qualityScore={chamberC.quality - 1}
+            temperatureC={chamberC.tempC}
+            humidityPct={chamberC.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-C2'}
+            onSelect={setSelectedZone}
+          />
+          <StorageRack
+            position={[14, 0, 2]}
+            rackId="RACK-C3"
+            chamberName="Chamber C (Controlled Atm)"
+            commodity="potato"
+            qualityScore={chamberC.quality}
+            temperatureC={chamberC.tempC}
+            humidityPct={chamberC.rhPct}
+            isSelected={selectedZone?.rackId === 'RACK-C3'}
+            onSelect={setSelectedZone}
+          />
+
+          {/* Airflow Particles Animation */}
+          {showAirflow && <AirflowParticles speed={simulationState?.sim_speed || 1} />}
+
+          {/* Dynamic Thermal Heatmap Layer */}
+          <ThermalHeatmap
+            chamberA_temp={chamberA.tempC}
+            chamberB_temp={chamberB.tempC}
+            chamberC_temp={chamberC.tempC}
+            visible={showHeatmap}
+          />
+        </Canvas>
+      )}
+
+      {/* 4. Bottom-Left: Live Chamber Microclimate HUD (Overlay for both engines) */}
+      <div className="absolute bottom-3 left-4 z-20 hidden md:flex items-center gap-2 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 text-xs shadow-lg">
         {/* Chamber A Pill */}
         <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
           <div className="flex items-center justify-between gap-3 text-[10px] text-slate-400 font-bold uppercase">
@@ -329,8 +423,8 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
         </div>
       </div>
 
-      {/* 5. Selected Rack Inspection Drawer Modal */}
-      {selectedZone && (
+      {/* 5. Selected Rack Inspection Drawer Modal (Three.js mode) */}
+      {modelSource === 'three' && selectedZone && (
         <div className="absolute top-16 right-4 z-30 w-72 bg-slate-900/95 backdrop-blur-md p-4 rounded-xl border border-blue-500 shadow-2xl text-white text-xs space-y-3">
           <div className="flex items-center justify-between border-b border-slate-700 pb-2">
             <div>
