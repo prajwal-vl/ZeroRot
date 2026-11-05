@@ -13,6 +13,7 @@ Tests:
 - Versioned FastAPI endpoints
 """
 import pytest
+import cv2
 from fastapi.testclient import TestClient
 from backend.app.main import app
 from backend.app.simulation.thermal_model import ThermalModel
@@ -138,6 +139,34 @@ def test_opencv_synthetic_inspection_grading():
     assert spoiled_res["status"] == "SUCCESS"
     assert spoiled_res["classification"] == "REJECTED"
     assert len(spoiled_res["defects_detected"]) > 0
+
+def test_opencv_multi_background_robustness_and_blank_handling():
+    """Validates robust produce segmentation on dark, white, and gray backgrounds, and blank canvas handling."""
+    # 1. Dark background
+    dark_res = VisionInspector.generate_synthetic_inspection("tomato", "GOOD", background_type="dark")
+    assert dark_res["status"] == "SUCCESS"
+    assert dark_res["classification"] == "GOOD"
+    assert dark_res["methodology"]["neural_inference_active"] is False
+
+    # 2. Light / White background (e.g. white sorting tray)
+    white_res = VisionInspector.generate_synthetic_inspection("tomato", "GOOD", background_type="white")
+    assert white_res["status"] == "SUCCESS"
+    assert white_res["classification"] == "GOOD"
+    assert abs(white_res["quality_score"] - dark_res["quality_score"]) < 10.0
+
+    # 3. Gray background
+    gray_res = VisionInspector.generate_synthetic_inspection("tomato", "GOOD", background_type="gray")
+    assert gray_res["status"] == "SUCCESS"
+    assert gray_res["classification"] == "GOOD"
+
+    # 4. Blank white canvas (must NOT classify as REJECTED produce)
+    import numpy as np
+    blank_white = np.full((320, 320, 3), 255, dtype=np.uint8)
+    blank_bytes = cv2.imencode(".png", blank_white)[1].tobytes()
+    blank_res = VisionInspector.analyze_image_bytes(blank_bytes, "tomato")
+    assert blank_res["status"] == "LOW_CONFIDENCE"
+    assert blank_res["classification"] != "REJECTED"
+    assert blank_res["confidence_score"] <= 0.30
 
 # ----------------- 5. AGRICULTURAL PRICE & PROFIT TESTS -----------------
 

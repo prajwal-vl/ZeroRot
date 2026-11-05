@@ -2,107 +2,36 @@
 Biological Produce Deterioration & Shelf-Life Kinetics Model.
 Implements Arrhenius / Q10-based biochemical degradation kinetics,
 calculates spoilage risk index, and estimates remaining shelf life.
+All calculations are centrally unified via ScientificCommodityRegistry.
 """
 import math
 from typing import Dict, Any, List
 
+try:
+    from .commodity_registry import ScientificCommodityRegistry, COMMODITY_REGISTRY
+except ImportError:
+    from app.simulation.commodity_registry import ScientificCommodityRegistry, COMMODITY_REGISTRY
+
+# Dynamically construct COMMODITY_SHELF_LIFE_PARAMS from authoritative ScientificCommodityRegistry
 COMMODITY_SHELF_LIFE_PARAMS = {
-    "mango": {
-        "optimal_temp_c": 13.0,
-        "chilling_injury_threshold_c": 10.0,
-        "max_shelf_life_days": 21.0, # at optimal condition
-        "base_decay_rate_day": 0.047, # 1 / 21
-        "q10_decay": 2.4,
-        "optimal_rh_min": 85.0,
-        "optimal_rh_max": 92.0,
-        "critical_quality_threshold": 35.0 # percentage below which produce is unmarketable
-    },
-    "banana": {
-        "optimal_temp_c": 14.0,
-        "chilling_injury_threshold_c": 12.5,
-        "max_shelf_life_days": 18.0,
-        "base_decay_rate_day": 0.055,
-        "q10_decay": 2.5,
-        "optimal_rh_min": 88.0,
-        "optimal_rh_max": 95.0,
-        "critical_quality_threshold": 40.0
-    },
-    "tomato": {
-        "optimal_temp_c": 12.0,
-        "chilling_injury_threshold_c": 9.0,
-        "max_shelf_life_days": 16.0,
-        "base_decay_rate_day": 0.062,
-        "q10_decay": 2.2,
-        "optimal_rh_min": 85.0,
-        "optimal_rh_max": 90.0,
-        "critical_quality_threshold": 30.0
-    },
-    "potato": {
-        "optimal_temp_c": 8.0,
-        "chilling_injury_threshold_c": 3.5, # cold sweetening risk below 4°C
-        "max_shelf_life_days": 120.0,
-        "base_decay_rate_day": 0.0083,
-        "q10_decay": 1.9,
-        "optimal_rh_min": 90.0,
-        "optimal_rh_max": 95.0,
-        "critical_quality_threshold": 30.0
-    },
-    "onion": {
-        "optimal_temp_c": 2.0,
-        "chilling_injury_threshold_c": -1.0,
-        "max_shelf_life_days": 180.0,
-        "base_decay_rate_day": 0.0055,
-        "q10_decay": 1.7,
-        "optimal_rh_min": 65.0,
-        "optimal_rh_max": 75.0, # Onions require lower RH to prevent neck rot / sprouting
-        "critical_quality_threshold": 30.0
-    },
-    "apple": {
-        "optimal_temp_c": 1.0,
-        "chilling_injury_threshold_c": -1.0,
-        "max_shelf_life_days": 150.0,
-        "base_decay_rate_day": 0.0067,
-        "q10_decay": 2.0,
-        "optimal_rh_min": 90.0,
-        "optimal_rh_max": 95.0,
-        "critical_quality_threshold": 35.0
-    },
-    "grape": {
-        "optimal_temp_c": 0.0,
-        "chilling_injury_threshold_c": -1.5,
-        "max_shelf_life_days": 60.0,
-        "base_decay_rate_day": 0.016,
-        "q10_decay": 2.1,
-        "optimal_rh_min": 90.0,
-        "optimal_rh_max": 95.0,
-        "critical_quality_threshold": 40.0
-    },
-    "orange": {
-        "optimal_temp_c": 5.0,
-        "chilling_injury_threshold_c": 2.0,
-        "max_shelf_life_days": 60.0,
-        "base_decay_rate_day": 0.0167,
-        "q10_decay": 1.8,
-        "optimal_rh_min": 85.0,
-        "optimal_rh_max": 90.0,
-        "critical_quality_threshold": 35.0
-    },
-    "guava": {
-        "optimal_temp_c": 9.0,
-        "chilling_injury_threshold_c": 5.0,
-        "max_shelf_life_days": 21.0,
-        "base_decay_rate_day": 0.0476,
-        "q10_decay": 2.3,
-        "optimal_rh_min": 90.0,
-        "optimal_rh_max": 95.0,
-        "critical_quality_threshold": 35.0
+    key: {
+        "optimal_temp_c": prof.optimal_temp_c,
+        "chilling_injury_threshold_c": prof.chilling_injury_threshold_c,
+        "max_shelf_life_days": prof.max_shelf_life_days_optimal,
+        "base_decay_rate_day": prof.base_decay_rate_day,
+        "q10_decay": prof.q10_decay,
+        "optimal_rh_min": prof.optimal_rh_range_pct[0],
+        "optimal_rh_max": prof.optimal_rh_range_pct[1],
+        "critical_quality_threshold": prof.critical_quality_threshold
     }
+    for key, prof in COMMODITY_REGISTRY.items()
 }
 COMMODITY_SHELF_LIFE_PARAMS["grapes"] = COMMODITY_SHELF_LIFE_PARAMS["grape"]
 
 class DeteriorationModel:
     """
     Kinetics-based deterioration and shelf-life prediction engine.
+    Unified with ScientificCommodityRegistry as single authoritative source.
     """
 
     @staticmethod
@@ -110,66 +39,29 @@ class DeteriorationModel:
         commodity_name: str,
         temp_c: float,
         rh_pct: float,
-        o2_pct: float,
-        co2_ppm: float
+        o2_pct: float = 20.8,
+        co2_ppm: float = 450.0,
+        ambient_ethylene_ppm: float = 0.05
     ) -> Dict[str, float]:
         """
         Calculates the instantaneous deterioration rate k (per day).
-        k = k_base * f(T) * f(RH) * f(Gas)
+        Delegates directly to ScientificCommodityRegistry.
+        k = k_base * f(T) * f(RH) * f(Gas) * f(Ethylene)
         """
-        params = COMMODITY_SHELF_LIFE_PARAMS.get(
-            commodity_name.lower(),
-            COMMODITY_SHELF_LIFE_PARAMS["tomato"]
+        decay_res = ScientificCommodityRegistry.calculate_effective_decay(
+            commodity_name=commodity_name,
+            temp_c=temp_c,
+            rh_pct=rh_pct,
+            o2_pct=o2_pct,
+            co2_ppm=co2_ppm,
+            ambient_ethylene_ppm=ambient_ethylene_ppm
         )
-        
-        opt_t = params["optimal_temp_c"]
-        q10 = params["q10_decay"]
-        k_base = params["base_decay_rate_day"]
-        chill_threshold = params["chilling_injury_threshold_c"]
-        
-        # 1. Temperature factor f(T):
-        if temp_c >= opt_t:
-            # Warm acceleration
-            f_temp = math.pow(q10, (temp_c - opt_t) / 10.0)
-        else:
-            if temp_c < chill_threshold:
-                # Chilling injury accelerates physiological breakdown
-                under_chill = chill_threshold - temp_c
-                f_temp = 1.0 + (0.35 * under_chill * under_chill)
-            else:
-                # Normal cold slowdown
-                f_temp = max(0.25, math.pow(q10, (temp_c - opt_t) / 10.0))
-                
-        # 2. Relative Humidity factor f(RH):
-        rh_min = params["optimal_rh_min"]
-        rh_max = params["optimal_rh_max"]
-        f_rh = 1.0
-        if rh_pct < rh_min:
-            # Desiccation, weight loss & shriveling
-            deficit = rh_min - rh_pct
-            f_rh += 0.02 * deficit
-        elif rh_pct > rh_max:
-            # Free water condensation / mold & rot risk
-            excess = rh_pct - rh_max
-            f_rh += 0.035 * excess
-            
-        # 3. Gas factor f(Gas):
-        # Elevated CO2 (>5%) and hypoxia (<2% O2) trigger anaerobic fermentation or injury
-        f_gas = 1.0
-        if o2_pct < 2.0:
-            hypoxia_severity = (2.0 - o2_pct)
-            f_gas += 0.4 * hypoxia_severity # Fermentation breakdown
-        if co2_ppm > 25000: # >2.5% CO2
-            co2_injury = (co2_ppm - 25000) / 10000.0
-            f_gas += 0.25 * co2_injury
-            
-        effective_k_day = k_base * f_temp * f_rh * f_gas
-        
         return {
-            "effective_k_day": round(effective_k_day, 5),
-            "temp_factor": round(f_temp, 3),
-            "humidity_factor": round(f_rh, 3),
-            "gas_factor": round(f_gas, 3)
+            "effective_k_day": decay_res["effective_k_day"],
+            "temp_factor": decay_res["temp_factor"],
+            "humidity_factor": decay_res["humidity_factor"],
+            "gas_factor": decay_res["gas_factor"],
+            "ethylene_factor": decay_res.get("ethylene_factor", 1.0)
         }
 
     @staticmethod

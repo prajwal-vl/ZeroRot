@@ -26,11 +26,15 @@ try:
     from ..database import SessionLocal
     from ..models.models import SimulationRecord, SimulationStateRecord, ProduceBatch, VirtualSensorReading
     from .deterioration_model import DeteriorationModel
+    from .batch_engine import BatchSimulationManager
+    from .commodity_registry import ScientificCommodityRegistry
 except ImportError:
     try:
         from app.database import SessionLocal
         from app.models.models import SimulationRecord, SimulationStateRecord, ProduceBatch, VirtualSensorReading
         from app.simulation.deterioration_model import DeteriorationModel
+        from app.simulation.batch_engine import BatchSimulationManager
+        from app.simulation.commodity_registry import ScientificCommodityRegistry
     except ImportError:
         SessionLocal = None
         SimulationRecord = None
@@ -38,6 +42,8 @@ except ImportError:
         ProduceBatch = None
         VirtualSensorReading = None
         DeteriorationModel = None
+        BatchSimulationManager = None
+        ScientificCommodityRegistry = None
 
 class SimulationEngine:
     """
@@ -69,6 +75,7 @@ class SimulationEngine:
         self.alert_counter = 1
         self.active_batch_code: Optional[str] = None
         self.tick_counter = 0
+        self.batch_manager = BatchSimulationManager() if BatchSimulationManager else None
 
     def ensure_simulation_record(self, db) -> Optional[Any]:
         """Ensures a persistent simulation run record exists and matches engine parameters."""
@@ -131,8 +138,8 @@ class SimulationEngine:
             db.rollback()
 
     def step_active_batches(self, db, dt_seconds: float):
-        """Simulates deterioration kinetics independently for all active batches across facilities."""
-        if not db or not ProduceBatch or not DeteriorationModel:
+        """Simulates deterioration kinetics independently for all active batches across facilities using BatchSimulationManager."""
+        if not db or not ProduceBatch:
             return
         try:
             active_batches = db.query(ProduceBatch).filter(
@@ -141,11 +148,15 @@ class SimulationEngine:
             ).all()
 
             if not active_batches:
+                if self.batch_manager:
+                    self.batch_manager.instances.clear()
                 return
 
             now_utc = datetime.now(timezone.utc)
+            active_codes = set()
 
             for b in active_batches:
+                active_codes.add(b.batch_code)
                 st = (b.storage_type or "TRADITIONAL").upper()
                 if st == "TRADITIONAL":
                     temp_c = self.traditional_store.internal_temp_c
@@ -172,60 +183,106 @@ class SimulationEngine:
                     o2_pct = self.truck.o2_pct
                     co2_ppm = self.truck.co2_ppm
 
-                det = DeteriorationModel.step_produce_quality(
-                    current_quality_score=b.current_quality_score,
-                    commodity_name=b.commodity_name,
-                    temp_c=temp_c,
-                    rh_pct=rh_pct,
-                    o2_pct=o2_pct,
-                    co2_ppm=co2_ppm,
-                    dt_seconds=dt_seconds
-                )
-
-                b.current_quality_score = round(det["quality_score"], 2)
-                b.remaining_shelf_life_days = round(det["remaining_shelf_life_days"], 2)
-                b.last_executed_at = now_utc
-
-                # Record authoritative virtual sensor telemetry
-                if VirtualSensorReading:
-                    db.add(VirtualSensorReading(
-                        sensor_id=f"sens_temp_{b.batch_code}",
-                        sensor_type="TEMPERATURE",
-                        asset_id=b.batch_code,
-                        value=round(temp_c, 2),
-                        unit="°C",
-                        data_label="SIMULATED",
-                        recorded_at=now_utc
-                    ))
-                    db.add(VirtualSensorReading(
-                        sensor_id=f"sens_rh_{b.batch_code}",
-                        sensor_type="HUMIDITY",
-                        asset_id=b.batch_code,
-                        value=round(rh_pct, 1),
-                        unit="%",
-                        data_label="SIMULATED",
-                        recorded_at=now_utc
-                    ))
-                    db.add(VirtualSensorReading(
-                        sensor_id=f"sens_quality_{b.batch_code}",
-                        sensor_type="QUALITY",
-                        asset_id=b.batch_code,
-                        value=round(b.current_quality_score, 2),
-                        unit="%",
-                        data_label="SIMULATED",
-                        recorded_at=now_utc
-                    ))
-
-                # Spoilage threshold alert
-                if b.current_quality_score <= 35.0 or b.remaining_shelf_life_days <= 1.0:
-                    self._trigger_alert(
-                        module=f"BATCH_{b.batch_code}",
-                        severity="CRITICAL",
-                        title=f"Batch {b.batch_code} Spoilage Critical",
-                        message=f"{b.commodity_name.capitalize()} quality decayed to {b.current_quality_score}% with {b.remaining_shelf_life_days} days shelf life remaining in {st}.",
-                        recommended_action="Expedite immediate auction dispatch to APMC mandi.",
-                        timestamp=now_utc.isoformat()
+                if self.batch_manager:
+                    inst = self.batch_manager.register_or_get_instance(
+                        batch_id=b.id,
+                        batch_code=b.batch_code,
+                        commodity_name=b.commodity_name,
+                        quantity_kg=b.quantity_kg,
+                        storage_type=st,
+                        initial_quality_score=getattr(b, "initial_quality_score", 100.0) or 100.0,
+                        current_quality_score=b.current_quality_score,
+                        remaining_shelf_life_days=b.remaining_shelf_life_days,
+                        initial_price_per_kg=getattr(b, "purchase_price_per_kg", 45.0) or 45.0,
+                        location=getattr(b, "storage_location", "Main Facility") or "Main Facility"
                     )
+
+                    disruption = self.batch_manager.active_disruptions.get(b.batch_code)
+                    if not disruption:
+                        inst.microclimate.chamber_temp_c = temp_c
+                        inst.microclimate.chamber_rh_pct = rh_pct
+                        inst.microclimate.chamber_o2_pct = o2_pct
+                        inst.microclimate.chamber_co2_ppm = co2_ppm
+
+                    step_res = inst.step(
+                        dt_seconds=dt_seconds,
+                        ambient_temp_c=self.ambient_temp_c,
+                        ambient_rh_pct=self.ambient_rh_pct,
+                        active_disruption=disruption
+                    )
+
+                    b.current_quality_score = round(inst.current_quality_score, 2)
+                    b.remaining_shelf_life_days = round(inst.remaining_shelf_life_days, 2)
+                    b.last_executed_at = now_utc
+
+                    # Record authoritative virtual sensor telemetry
+                    if VirtualSensorReading:
+                        db.add(VirtualSensorReading(
+                            sensor_id=f"sens_temp_{b.batch_code}",
+                            sensor_type="TEMPERATURE",
+                            asset_id=b.batch_code,
+                            value=round(inst.microclimate.chamber_temp_c, 2),
+                            unit="°C",
+                            data_label="SIMULATED",
+                            recorded_at=now_utc
+                        ))
+                        db.add(VirtualSensorReading(
+                            sensor_id=f"sens_rh_{b.batch_code}",
+                            sensor_type="HUMIDITY",
+                            asset_id=b.batch_code,
+                            value=round(inst.microclimate.chamber_rh_pct, 1),
+                            unit="%",
+                            data_label="SIMULATED",
+                            recorded_at=now_utc
+                        ))
+                        db.add(VirtualSensorReading(
+                            sensor_id=f"sens_quality_{b.batch_code}",
+                            sensor_type="QUALITY",
+                            asset_id=b.batch_code,
+                            value=round(inst.current_quality_score, 2),
+                            unit="%",
+                            data_label="SIMULATED",
+                            recorded_at=now_utc
+                        ))
+                        db.add(VirtualSensorReading(
+                            sensor_id=f"sens_core_temp_{b.batch_code}",
+                            sensor_type="CORE_TEMPERATURE",
+                            asset_id=b.batch_code,
+                            value=round(inst.microclimate.produce_core_temp_c, 2),
+                            unit="°C",
+                            data_label="SIMULATED",
+                            recorded_at=now_utc
+                        ))
+
+                    # Spoilage threshold alert
+                    if b.current_quality_score <= inst.critical_quality_threshold or b.remaining_shelf_life_days <= 1.0:
+                        self._trigger_alert(
+                            module=f"BATCH_{b.batch_code}",
+                            severity="CRITICAL",
+                            title=f"Batch {b.batch_code} Spoilage Critical",
+                            message=f"{b.commodity_name.capitalize()} quality decayed to {b.current_quality_score}% with {b.remaining_shelf_life_days} days shelf life remaining in {st}.",
+                            recommended_action="Expedite immediate auction dispatch to APMC mandi.",
+                            timestamp=now_utc.isoformat()
+                        )
+                elif DeteriorationModel:
+                    det = DeteriorationModel.step_produce_quality(
+                        current_quality_score=b.current_quality_score,
+                        commodity_name=b.commodity_name,
+                        temp_c=temp_c,
+                        rh_pct=rh_pct,
+                        o2_pct=o2_pct,
+                        co2_ppm=co2_ppm,
+                        dt_seconds=dt_seconds
+                    )
+                    b.current_quality_score = round(det["quality_score"], 2)
+                    b.remaining_shelf_life_days = round(det["remaining_shelf_life_days"], 2)
+                    b.last_executed_at = now_utc
+
+            # Prune instances in manager that are no longer active
+            if self.batch_manager:
+                for existing_code in list(self.batch_manager.instances.keys()):
+                    if existing_code not in active_codes:
+                        self.batch_manager.remove_instance(existing_code)
 
             db.commit()
         except Exception as e:
@@ -239,17 +296,23 @@ class SimulationEngine:
         if storage_type == "TRADITIONAL":
             self.traditional_store = TraditionalStorageTwin(commodity_name=commodity_name, quantity_kg=quantity_kg)
         else:
-            self.cold_warehouse.allocate_chamber(
-                chamber_id="CH_A",
-                commodity_name=commodity_name,
-                quantity_kg=quantity_kg,
-                crates=max(1, int(quantity_kg / 20.0))
-            )
+            comm = commodity_name.lower()
+            ch_id = "chamber_tropical" if comm in ["mango", "banana"] else ("chamber_cold_dry" if comm == "onion" else "chamber_veggie")
+            alloc_fn = getattr(self.cold_warehouse, "allocate_produce", getattr(self.cold_warehouse, "allocate_chamber", None))
+            if alloc_fn:
+                alloc_fn(
+                    chamber_id=ch_id,
+                    commodity_name=commodity_name,
+                    quantity_kg=quantity_kg,
+                    crates=max(1, int(quantity_kg / 20.0))
+                )
 
     def disengage_batch(self, batch_code: str):
         """Stops simulations and removes alerts for a deleted or archived batch."""
         if self.active_batch_code == batch_code:
             self.active_batch_code = None
+        if self.batch_manager:
+            self.batch_manager.remove_instance(batch_code)
         # Remove any alerts belonging or referring to this batch
         self.alerts = [a for a in self.alerts if batch_code not in a.get("message", "") and batch_code not in a.get("title", "")]
 
@@ -339,6 +402,9 @@ class SimulationEngine:
         self.traditional_store = TraditionalStorageTwin(commodity_name="tomato", quantity_kg=1200.0)
         self.cold_warehouse = ColdStorageWarehouseTwin()
         self.truck = RefrigeratedTruckTwin(commodity_name="tomato", quantity_kg=2400.0)
+        if self.batch_manager:
+            self.batch_manager.instances.clear()
+            self.batch_manager.active_disruptions.clear()
         self.alerts.clear()
         self.alert_counter = 1
 
@@ -564,6 +630,7 @@ class SimulationEngine:
             "refrigerated_truck": truck_state,
             "alerts": self.alerts,
             "unacknowledged_alerts_count": sum(1 for a in self.alerts if not a["acknowledged"]),
+            "batch_instances": self.batch_manager.get_all_snapshots() if self.batch_manager else [],
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 

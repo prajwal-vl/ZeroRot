@@ -108,3 +108,11 @@ class MandiOptimizeRequest(BaseModel):
     storage_days: int = 7
     storage_type: str = "COLD_STORAGE"
     transport_cost_per_kg: float = 1.20
+
+# ----------------- AGENTIC INTERVENTION SCHEMAS -----------------
+
+class ApplyInterventionRequest(BaseModel):
+    batch_code: str
+    option_id: str # e.g. OPT_CLIMATE_OPTIMIZE, OPT_EXPEDITE_MANDI, OPT_AGRO_PROCESSING
+    notes: Optional[str] = None
+    overrides: Optional[Dict[str, Any]] = None

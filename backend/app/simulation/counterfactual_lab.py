@@ -190,3 +190,27 @@ class CounterfactualScenarioLab:
                 "justification": f"Precision cold storage setpoints save ₹{results['ai_optimal']['avoided_loss_inr']:,.2f} in spoilage with a net financial surplus of ₹{results['ai_optimal']['net_benefit_inr']:,.2f} after accounting for operational energy costs."
             }
         }
+
+    @classmethod
+    def simulate_waterfall(
+        cls,
+        commodity_name: str,
+        quantity_kg: float,
+        current_quality_score: float,
+        current_temp_c: float = 24.0,
+        current_rh_pct: float = 65.0,
+        current_market_rate_inr_kg: float = 40.0,
+        horizon_days: float = 7.0
+    ) -> Dict[str, Any]:
+        """Convenience method for multi-scenario waterfall analysis."""
+        res = cls.run_counterfactual_comparison(
+            commodity_name=commodity_name,
+            initial_quantity_kg=quantity_kg,
+            initial_quality_score=current_quality_score,
+            current_market_rate_inr_kg=current_market_rate_inr_kg,
+            horizon_days=horizon_days,
+            baseline_temp_c=current_temp_c,
+            baseline_rh_pct=current_rh_pct
+        )
+        res["avoided_loss_inr"] = res["ai_verdict"]["avoided_loss_inr"]
+        return res

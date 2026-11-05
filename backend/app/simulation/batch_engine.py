@@ -326,6 +326,8 @@ class BatchSimulationManager:
         quantity_kg: float,
         storage_type: str = "COLD_STORAGE",
         initial_quality_score: float = 100.0,
+        current_quality_score: Optional[float] = None,
+        remaining_shelf_life_days: Optional[float] = None,
         initial_price_per_kg: float = 45.0,
         location: str = "Central Cold Store Hub - Chamber A"
     ) -> BatchSimulationInstance:
@@ -343,6 +345,11 @@ class BatchSimulationManager:
             initial_price_per_kg=initial_price_per_kg,
             location=location
         )
+        if current_quality_score is not None:
+            instance.current_quality_score = float(current_quality_score)
+        if remaining_shelf_life_days is not None:
+            instance.remaining_shelf_life_days = float(remaining_shelf_life_days)
+
         self.instances[batch_code] = instance
         return instance
 

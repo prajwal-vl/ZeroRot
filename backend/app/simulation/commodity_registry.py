@@ -346,6 +346,39 @@ COMMODITY_REGISTRY: Dict[str, ScientificCommodityProfile] = {
             "chilling_threshold": CommodityParameterMetadata(5.0, "°C", "Mitra, Postharvest Physiology and Storage of Guava", "4.0 - 6.0"),
         }
     ),
+    "orange": ScientificCommodityProfile(
+        name="Orange",
+        botanical_name="Citrus sinensis (Nagpur Orange / Valencia)",
+        category="Citrus Non-Climacteric Fruit",
+        climacteric=False,
+        optimal_temp_c=5.0,
+        optimal_temp_range_c=[4.0, 7.0],
+        optimal_rh_pct=88.0,
+        optimal_rh_range_pct=[85.0, 90.0],
+        chilling_injury_threshold_c=2.0,
+        freezing_point_c=-1.1,
+        pre_exponential_factor_a_day=5.8e6,
+        activation_energy_ea_j_mol=47500.0,
+        q10_decay=1.8,
+        base_decay_rate_day=0.0167,         # ~60 days shelf-life at 5°C
+        respiration_base_20c_w_kg=0.022,
+        q10_respiration=1.8,
+        specific_heat_kj_kg_k=3.81,
+        transpiration_coefficient_kg_m2_s_kpa=1.1e-6,
+        surface_area_per_kg_m2=0.038,
+        max_allowable_water_loss_pct=6.0,
+        dalton_o2_min_kpa=5.0,
+        dalton_o2_max_kpa=10.0,
+        co2_tolerance_pct=5.0,
+        ethylene_production_rate_ul_kg_h=0.05,
+        ethylene_sensitivity="LOW",
+        max_shelf_life_days_optimal=60.0,
+        critical_quality_threshold=35.0,
+        metadata={
+            "activation_energy": CommodityParameterMetadata(47500.0, "J/mol", "USDA Agricultural Handbook 66", "42000 - 52000"),
+            "chilling_threshold": CommodityParameterMetadata(2.0, "°C", "Kader et al., Citrus Storage Biology", "1.5 - 3.0"),
+        }
+    ),
 }
 
 # Alias standard singular forms
@@ -487,7 +520,7 @@ class CommodityKineticsEngine:
 
     @classmethod
     def list_all_profiles(cls) -> List[Dict[str, Any]]:
-        """Returns all 8 distinct commodity profiles in serializable format."""
+        """Returns all 8 distinct primary commodity profiles in serializable format."""
         distinct_keys = ["mango", "banana", "tomato", "apple", "potato", "onion", "grapes", "guava"]
         profiles = []
         for k in distinct_keys:

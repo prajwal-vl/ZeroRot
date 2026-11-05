@@ -246,3 +246,45 @@ def test_zero_rot_2_api_endpoints():
     })
     assert agent_resp.status_code == 200
     assert agent_resp.json()["decision_cycle"]["step_7_recommend"]["recommended_option_id"] is not None
+
+    # 6. Apply Agentic Intervention (Phase 2 Validation)
+    # Register a test batch first
+    reg_resp = client.post("/api/v1/batches", json={
+        "commodity_name": "banana",
+        "quantity_kg": 2500.0,
+        "storage_type": "COLD_STORAGE",
+        "farmer_name": "Test Farmer"
+    })
+    assert reg_resp.status_code == 200
+    batch_code = reg_resp.json()["batch_code"]
+
+    # Apply Precision Climate Optimization Intervention
+    apply_resp = client.post("/api/v1/agents/interventions/apply", json={
+        "batch_code": batch_code,
+        "option_id": "OPT_CLIMATE_OPTIMIZE",
+        "notes": "Automated precision restoration test"
+    })
+    assert apply_resp.status_code == 200
+    res_data = apply_resp.json()
+    assert res_data["status"] == "SUCCESS"
+    assert "audit_id" in res_data
+    assert res_data["post_intervention_trajectory"]["avoided_loss_inr"] > 0
+    assert res_data["action_details"]["action"] == "PRECISION_CLIMATE_RESTORED"
+
+    # Apply Expedite Mandi Dispatch Intervention
+    apply_mandi_resp = client.post("/api/v1/agents/interventions/apply", json={
+        "batch_code": batch_code,
+        "option_id": "OPT_EXPEDITE_MANDI",
+        "notes": "Rerouting to nearest APMC"
+    })
+    assert apply_mandi_resp.status_code == 200
+    assert apply_mandi_resp.json()["batch"]["storage_type"] == "IN_TRANSIT"
+
+    # Apply Agro-Processing Divert Intervention
+    apply_proc_resp = client.post("/api/v1/agents/interventions/apply", json={
+        "batch_code": batch_code,
+        "option_id": "OPT_AGRO_PROCESSING",
+        "notes": "Salvaging batch to puree"
+    })
+    assert apply_proc_resp.status_code == 200
+    assert apply_proc_resp.json()["batch"]["simulation_status"] == "COMPLETED"

@@ -9,19 +9,21 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 import csv
 import io
+import json
 
 from ..database import get_db
 from ..models.models import (
     Commodity, ProduceBatch, FarmerProfile, InspectionRecord,
     StorageFacility, AlertRecord, QRAccessSession, User, MandiPriceRecord, PriceForecastRecord,
-    VirtualSensorReading
+    VirtualSensorReading, AuditLog
 )
 from ..simulation.deterioration_model import DeteriorationModel
 from ..schemas.schemas import (
     ControlRequest, CreateBatchRequest, StorageAllocationRequest,
     InspectionScanRequest, ProfitOptimizeRequest, QRGenerateRequest, UpdateQRConfigRequest,
     AcknowledgeAlertRequest, RegisterRequest, LoginRequest, UserResponse, CreateUserByAdminRequest,
-    UpdateUserStatusRequest, DeleteBatchRequest, MandiForecastRequest, MandiOptimizeRequest
+    UpdateUserStatusRequest, DeleteBatchRequest, MandiForecastRequest, MandiOptimizeRequest,
+    ApplyInterventionRequest
 )
 from ..simulation.engine import master_simulation
 from ..services.weather_service import WeatherService
@@ -1425,6 +1427,177 @@ def execute_agent_decision_cycle(payload: Dict[str, Any]):
     return {
         "status": "SUCCESS",
         "decision_cycle": cycle
+    }
+
+@api_router.post("/agents/interventions/apply")
+def apply_agentic_intervention(
+    req: ApplyInterventionRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Applies recommended or operator-selected operational intervention to a produce batch.
+    Mutates digital twin microclimate, routing, or processing state, records compliance audit log,
+    and returns updated post-intervention trajectory.
+    """
+    batch = db.query(ProduceBatch).filter(
+        ProduceBatch.batch_code == req.batch_code,
+        ProduceBatch.is_deleted == False
+    ).first()
+
+    if not batch:
+        raise HTTPException(status_code=404, detail=f"Produce batch '{req.batch_code}' not found.")
+
+    # Role-based authorization: ADMIN can intervene on any batch, FARMER only on their own batches
+    if current_user and current_user.role != "ADMIN" and batch.user_id:
+        if batch.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="You do not have authorization to execute interventions on this batch.")
+
+    prof = ScientificCommodityRegistry.get_profile(batch.commodity_name)
+    inst = master_batch_manager.register_or_get_instance(
+        batch_id=batch.id,
+        batch_code=batch.batch_code,
+        commodity_name=batch.commodity_name,
+        quantity_kg=batch.quantity_kg,
+        storage_type=batch.storage_type or "TRADITIONAL",
+        initial_quality_score=getattr(batch, "initial_quality_score", 100.0) or 100.0,
+        current_quality_score=batch.current_quality_score,
+        remaining_shelf_life_days=batch.remaining_shelf_life_days,
+        initial_price_per_kg=getattr(batch, "purchase_price_per_kg", 45.0) or 45.0,
+        location=getattr(batch, "current_location", "Main Storage") or "Main Storage"
+    )
+
+    action_details = {}
+    now_utc = datetime.now(timezone.utc)
+
+    if req.option_id == "OPT_CLIMATE_OPTIMIZE":
+        # 1. Reset chamber microclimate to commodity optimum
+        master_batch_manager.clear_batch_disruption(batch.batch_code)
+        inst.microclimate.chamber_temp_c = prof.optimal_temp_c
+        inst.microclimate.chamber_rh_pct = prof.optimal_rh_pct
+        inst.microclimate.chamber_o2_pct = 20.8
+        inst.microclimate.chamber_co2_ppm = 450.0
+        inst.microclimate.chamber_ethylene_ppm = 0.04
+
+        # Reset hardware twin cooling capacity and compressor faults
+        for ch in master_simulation.cold_warehouse.chambers.values():
+            ch.compressor_fault = False
+            ch.cooling_capacity_watts = 14000.0
+            ch.target_temp_c = prof.optimal_temp_c
+
+        inst.events_log.append({
+            "event": "INTERVENTION_APPLIED",
+            "option_id": "OPT_CLIMATE_OPTIMIZE",
+            "target_temp_c": prof.optimal_temp_c,
+            "target_rh_pct": prof.optimal_rh_pct,
+            "notes": req.notes,
+            "timestamp": now_utc.isoformat()
+        })
+        action_details["action"] = "PRECISION_CLIMATE_RESTORED"
+        action_details["setpoint_temp_c"] = prof.optimal_temp_c
+        action_details["setpoint_rh_pct"] = prof.optimal_rh_pct
+
+    elif req.option_id == "OPT_EXPEDITE_MANDI":
+        # 2. Re-route batch to in-transit refrigerated dispatch
+        batch.storage_type = "IN_TRANSIT"
+        batch.current_location = "En Route - Express Reefer to APMC Mandi"
+        inst.storage_type = "IN_TRANSIT"
+        inst.location = "En Route - Express Reefer to APMC Mandi"
+        inst.microclimate.chamber_temp_c = prof.optimal_temp_c + 1.0
+        inst.microclimate.chamber_rh_pct = 85.0
+        inst.events_log.append({
+            "event": "INTERVENTION_APPLIED",
+            "option_id": "OPT_EXPEDITE_MANDI",
+            "destination": "APMC Yeshwanthpur",
+            "notes": req.notes,
+            "timestamp": now_utc.isoformat()
+        })
+        action_details["action"] = "EXPRESS_MANDI_DISPATCH"
+        action_details["destination"] = "APMC Yeshwanthpur"
+        action_details["eta_hours"] = 2.5
+
+    elif req.option_id == "OPT_AGRO_PROCESSING":
+        # 3. Divert batch to agro-processing, guaranteeing buyback and halting spoilage deterioration
+        batch.simulation_status = "COMPLETED"
+        batch.current_location = "Mega Food Park Processing Line"
+        inst.is_spoiled = False
+        salvage_rate = 32.0
+        salvage_value = round(batch.quantity_kg * salvage_rate, 2)
+        inst.current_economic_value_inr = salvage_value
+        inst.events_log.append({
+            "event": "INTERVENTION_APPLIED",
+            "option_id": "OPT_AGRO_PROCESSING",
+            "salvage_value_inr": salvage_value,
+            "notes": req.notes,
+            "timestamp": now_utc.isoformat()
+        })
+        action_details["action"] = "AGRO_PROCESSING_DIVERT"
+        action_details["salvage_value_inr"] = salvage_value
+
+    else:
+        inst.events_log.append({
+            "event": "CUSTOM_INTERVENTION_APPLIED",
+            "option_id": req.option_id,
+            "notes": req.notes,
+            "timestamp": now_utc.isoformat()
+        })
+        action_details["action"] = "CUSTOM_INTERVENTION"
+
+    # Step physics to recalculate trajectory
+    step_res = inst.step(dt_seconds=3600.0, ambient_temp_c=master_simulation.ambient_temp_c)
+    batch.current_quality_score = round(inst.current_quality_score, 2)
+    batch.remaining_shelf_life_days = round(inst.remaining_shelf_life_days, 2)
+    batch.last_executed_at = now_utc
+
+    # Avoided loss and carbon calculations
+    quality_gain = max(5.0, 100.0 - (100.0 - batch.current_quality_score) * 0.75)
+    avoided_loss_inr = round(batch.quantity_kg * 45.0 * (quality_gain / 100.0) * 0.40, 2)
+    co2_saved_kg = round(batch.quantity_kg * 0.52 * (quality_gain / 100.0), 2)
+
+    # Compliance audit record
+    audit = AuditLog(
+        user_id=current_user.id if current_user else (batch.user_id or 1),
+        action=f"APPLY_INTERVENTION_{req.option_id}",
+        details=json.dumps({
+            "batch_code": batch.batch_code,
+            "option_id": req.option_id,
+            "notes": req.notes,
+            "action_details": action_details,
+            "updated_quality": batch.current_quality_score,
+            "updated_shelf_life_days": batch.remaining_shelf_life_days,
+            "storage_type": batch.storage_type,
+            "status": batch.simulation_status
+        }),
+        ip_address="127.0.0.1",
+        created_at=now_utc
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(batch)
+
+    return {
+        "status": "SUCCESS",
+        "message": f"Intervention '{req.option_id}' executed successfully for batch {batch.batch_code}.",
+        "batch": {
+            "batch_code": batch.batch_code,
+            "commodity_name": batch.commodity_name,
+            "storage_type": batch.storage_type,
+            "simulation_status": batch.simulation_status,
+            "current_location": batch.current_location,
+            "current_quality_score": batch.current_quality_score,
+            "remaining_shelf_life_days": batch.remaining_shelf_life_days
+        },
+        "post_intervention_trajectory": {
+            "option_id": req.option_id,
+            "effective_decay_k_day": round(inst.effective_k_day, 5),
+            "projected_shelf_life_days": round(inst.remaining_shelf_life_days, 1),
+            "avoided_loss_inr": avoided_loss_inr,
+            "projected_economic_value_inr": inst.current_economic_value_inr,
+            "co2_emissions_avoided_kg": co2_saved_kg
+        },
+        "action_details": action_details,
+        "audit_id": audit.id,
+        "timestamp": now_utc.isoformat()
     }
 
 @api_router.get("/sensors/network-status")

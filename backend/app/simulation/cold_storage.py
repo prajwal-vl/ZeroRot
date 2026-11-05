@@ -242,6 +242,9 @@ class ColdStorageWarehouseTwin:
                 return True
         return False
 
+    # Alias for API compatibility
+    allocate_chamber = allocate_produce
+
     def recommend_chamber(self, commodity_name: str, crates_needed: int) -> Dict[str, Any]:
         """Intelligent allocation engine mapping produce requirements to optimal available chamber."""
         commodity = commodity_name.lower()

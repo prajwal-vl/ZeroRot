@@ -70,8 +70,8 @@ class VirtualSensorNode:
                 "timestamp": now_iso
             }
 
-        # 2. Handle Packet Dropout (Stochastic wireless loss)
-        if random.random() < self.dropout_probability or self.fault_type == "DROPOUT":
+        # 2. Handle Packet Dropout (Stochastic wireless loss or explicit DROPOUT fault)
+        if self.fault_type == "DROPOUT" or (self.fault_type is None and random.random() < self.dropout_probability):
             self.last_reported_value = None
             self.provenance_label = "MISSING"
             return {

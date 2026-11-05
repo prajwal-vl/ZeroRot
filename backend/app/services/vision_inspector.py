@@ -51,14 +51,24 @@ class VisionInspector:
             }
 
     @staticmethod
-    def generate_synthetic_inspection(commodity_name: str = "tomato", defect_profile: str = "random") -> Dict[str, Any]:
+    def generate_synthetic_inspection(
+        commodity_name: str = "tomato",
+        defect_profile: str = "random",
+        background_type: str = "dark"
+    ) -> Dict[str, Any]:
         """
         Generates an authentic synthetic produce image matrix using OpenCV
         drawing primitives, gradient fills, and simulated surface blemishes
         for running conveyor simulations without manual file uploads.
+        Supports both dark, light/white, and gray inspection surfaces.
         """
         canvas = np.zeros((320, 320, 3), dtype=np.uint8)
-        canvas[:] = (22, 19, 18)
+        if background_type == "white":
+            canvas[:] = (245, 245, 245)
+        elif background_type == "gray":
+            canvas[:] = (128, 128, 128)
+        else: # dark conveyor
+            canvas[:] = (22, 19, 18)
         
         center = (160, 160)
         radius = 110
@@ -100,35 +110,85 @@ class VisionInspector:
 
     @staticmethod
     def _process_cv_matrix(img: np.ndarray, commodity_name: str) -> Dict[str, Any]:
-        """Core computer vision feature extraction, multi-task classification and defect segmentation."""
+        """
+        Core computer vision feature extraction, multi-task classification and defect segmentation.
+        Uses adaptive chromatic background subtraction and HSV thresholding to reliably isolate
+        produce across dark, white, and neutral backgrounds.
+        """
         h, w, _ = img.shape
+        total_canvas_area = h * w
+
+        # 1. Estimate background color by sampling perimeter corners
+        corner_h = max(2, min(20, h // 10))
+        corner_w = max(2, min(20, w // 10))
+        corners = np.vstack([
+            img[0:corner_h, 0:corner_w].reshape(-1, 3),
+            img[0:corner_h, -corner_w:].reshape(-1, 3),
+            img[-corner_h:, 0:corner_w].reshape(-1, 3),
+            img[-corner_h:, -corner_w:].reshape(-1, 3)
+        ])
+        bg_bgr = np.median(corners, axis=0)
+
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        _, thresh = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY)
-        
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        s_channel = hsv[:, :, 1]
+
+        # Euclidean chromatic distance from background in BGR color space
+        color_diff = np.linalg.norm(img.astype(np.float32) - bg_bgr.astype(np.float32), axis=2)
+
+        # Foreground segmentation based on Euclidean color difference from estimated background
+        combined_mask = (color_diff > 30.0).astype(np.uint8) * 255
+
+        # Morphological opening and closing to suppress noise and consolidate produce mask
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
+
+        contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return {
-                "status": "ERROR",
-                "error": "No agricultural produce item detected in foreground.",
+                "status": "LOW_CONFIDENCE",
+                "reason": "UNCERTAIN_SEGMENTATION",
+                "message": "No distinct produce contour segmented against surface. Please position produce under even illumination with visible boundary.",
+                "confidence_score": 0.20,
+                "classification": "UNCERTAIN",
+                "grade": "Uncertain / Needs Re-scan",
+                "quality_score": 0.0,
                 "data_label": "DATA UNAVAILABLE"
             }
-            
+
         largest_cnt = max(contours, key=cv2.contourArea)
         total_produce_pixels = cv2.contourArea(largest_cnt)
-        if total_produce_pixels < 400:
+
+        # Validation: Reject blank or overfilling canvases (>92% of total canvas)
+        if total_produce_pixels > (total_canvas_area * 0.92):
             return {
-                "status": "ERROR",
-                "error": "Subject item too small for reliable defect classification.",
+                "status": "LOW_CONFIDENCE",
+                "reason": "UNCERTAIN_SEGMENTATION",
+                "message": "Candidate contour overfills entire image canvas without distinct boundary. Likely blank background, overexposed white sheet, or camera occlusion.",
+                "confidence_score": 0.15,
+                "classification": "UNCERTAIN",
+                "grade": "Uncertain / Needs Re-scan",
+                "quality_score": 0.0,
                 "data_label": "DATA UNAVAILABLE"
             }
-            
-        produce_mask = np.zeros(gray.shape, dtype=np.uint8)
+
+        if total_produce_pixels < 400:
+            return {
+                "status": "LOW_CONFIDENCE",
+                "reason": "SUBJECT_TOO_SMALL",
+                "message": "Detected produce object too small for reliable defect classification (<400 px). Move camera closer.",
+                "confidence_score": 0.25,
+                "classification": "UNCERTAIN",
+                "grade": "Uncertain / Needs Re-scan",
+                "quality_score": 0.0,
+                "data_label": "DATA UNAVAILABLE"
+            }
+
+        produce_mask = np.zeros((h, w), dtype=np.uint8)
         cv2.drawContours(produce_mask, [largest_cnt], -1, 255, -1)
-        
+
         bx, by, bw, bh = cv2.boundingRect(largest_cnt)
-        
+
         # Mean color channels in produce region
         mean_hsv = cv2.mean(hsv, mask=produce_mask)
         mean_hue = mean_hsv[0]
@@ -262,5 +322,13 @@ class VisionInspector:
             },
             "bounding_box": {"x": int(bx), "y": int(by), "width": int(bw), "height": int(bh)},
             "recommended_destination": recommended_zone,
-            "data_label": "PREDICTED (RIPENET MULTI-TASK INFERENCE)"
+            "methodology": {
+                "segmentation_type": "ADAPTIVE_CHROMATIC_BACKGROUND_SUBTRACTION",
+                "color_space": "HSV_CIELAB_HEURISTIC",
+                "ripeness_inference": "SPECTRAL_HUE_INDEX",
+                "defect_segmentation": "MORPHOMETRIC_SATURATION_VALUE_THRESHOLDING",
+                "pipeline": "OPENCV_CLASSICAL_HEURISTICS",
+                "neural_inference_active": False
+            },
+            "data_label": "PREDICTED (OPENCV HEURISTIC INSPECTION)"
         }

@@ -50,11 +50,45 @@ ZERO ROT provides an integrated platform:
   - Mathematical simulation engines (Arrhenius, Dalton's Law, Navier-Stokes simplified thermal flows)
   - External APIs: Open-Meteo, DATA.GOV.IN, Agmarknet XML, Groq Cloud API, Telegram Bot API
 - **Testing**:
-  - `pytest` test suite: 24 comprehensive automated tests covering authentication, kinetics, mandi feeds, and alerts.
+  - `pytest` test suite: 45 comprehensive automated tests covering authentication, kinetics, mandi feeds, vision segmentation, incident cycles, and agentic decision workflows.
 
 ---
 
-## 3. Getting Started
+## 3. ZERO ROT 2.1 Machine Learning & Agentic Decision Features
+
+### Reproducible Spoilage Model Training
+To train the supervised Gradient Boosted Spoilage Regressor and Hybrid Residual Compensator from synthetic USDA/FAO post-harvest kinetics data:
+```bash
+python backend/app/intelligence/train_spoilage_model.py
+```
+This generates the serialized model artifact `backend/app/intelligence/spoilage_model.joblib` and computes genuine holdout test set metrics ($R^2 > 0.99$, MAE $< 0.70\%$, F1 $> 0.98$). If the artifact is not present, `TriModelSpoilageEngine` falls back gracefully to a physics-informed surrogate model.
+
+### Agentic Intervention Execution
+The agentic decision loop evaluates 9 operational stages and allows operator approval to execute real state mutations:
+```http
+POST /api/v1/agents/interventions/apply
+Content-Type: application/json
+
+{
+  "batch_code": "ZR-BAN-001",
+  "option_id": "OPT_EXPEDITE_MANDI",
+  "notes": "Reroute to regional auction before quality degradation"
+}
+```
+Supported interventions:
+- `OPT_CLIMATE_OPTIMIZE`: Restores chamber temperature and RH to commodity optimum, resets HVAC compressor capacity, and records intervention in the event log.
+- `OPT_EXPEDITE_MANDI`: Re-routes batch to in-transit refrigerated dispatch, assigns destination to nearest APMC mandi, and recalculates arrival timeline.
+- `OPT_AGRO_PROCESSING`: Diverts batch to regional food processing, halts biological decay, and secures salvage valuation buyback.
+
+### Computer Vision Multi-Surface Robustness
+The optical inspection engine (`VisionInspector`) employs adaptive chromatic background subtraction in Euclidean BGR and HSV color spaces:
+- Reliably segments produce against dark conveyors, white/light sorting trays, and neutral gray tables.
+- Blank, overexposed, or occluded canvases return explicit `LOW_CONFIDENCE` status with `UNCERTAIN` grading, rather than false rejection.
+- Clearly separates classical OpenCV heuristics from neural defect classification in response payloads.
+
+---
+
+## 4. Getting Started
 
 ### Prerequisites
 - Python 3.11+ (Python 3.13 supported)
@@ -99,9 +133,9 @@ The web dashboard is accessible at: `http://localhost:5173`
 
 ---
 
-## 4. Running Tests
+## 5. Running Tests
 
-### Backend Test Suite (24 Tests)
+### Backend Test Suite (45 Tests)
 ```bash
 python -m pytest backend/tests/ -v
 ```
@@ -113,7 +147,7 @@ npm --prefix frontend run build
 
 ---
 
-## 5. Security & Licensing
+## 6. Security & Licensing
 
 - Database starts with **0 preloaded users**; administrative accounts are initialized explicitly via the registration interface.
 - Localhost URLs are strictly forbidden from mobile QR generation.
