@@ -69,13 +69,13 @@ export const DigitalTwinTab: React.FC<DigitalTwinTabProps> = ({
               <Warehouse className="w-3.5 h-3.5 text-[#2563EB]" />
               3D DIGITAL TWIN &amp; SIMULATION
             </span>
-            <DataBadge label="SIMULATED" sourceText="Sketchfab 3D + Three.js Engine" />
+            <DataBadge label="SIMULATED" sourceText="High-Fidelity Three.js WebGL Engine" />
           </div>
           <h2 className="text-xl font-bold text-[#1E293B] mt-2 tracking-tight">
             Cold Storage Warehouse Digital Twin
           </h2>
           <p className="text-sm text-[#64748B] mt-1 max-w-2xl">
-            Interactive 3D virtual replica of the multi-zone cold storage warehouse featuring photorealistic Sketchfab spatial exploration, procedural produce decay shaders, live thermal heatmaps, and microclimate telemetry overlays.
+            Interactive 3D virtual replica of the multi-zone cold storage warehouse featuring native Three.js WebGL spatial exploration, industrial pallet racking, 5 fruit storage bays, animated logistics machinery, procedural produce decay shaders, live thermal heatmaps, and microclimate telemetry overlays.
           </p>
         </div>
 

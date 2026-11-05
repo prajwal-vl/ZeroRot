@@ -101,3 +101,4 @@ export const HandTruck: React.FC<HandTruckProps> = ({
     </group>
   );
 };
+
