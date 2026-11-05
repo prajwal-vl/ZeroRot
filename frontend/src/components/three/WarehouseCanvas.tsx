@@ -8,6 +8,7 @@ import { AirflowParticles } from './AirflowParticles';
 import { ThermalHeatmap } from './ThermalHeatmap';
 import { Forklift } from './Forklift';
 import { HandTruck } from './HandTruck';
+import { ZackCutawayInspector } from './ZackCutawayInspector';
 import {
   Layers,
   Wind,
@@ -60,8 +61,8 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
   simulationState,
   onRefreshState,
 }) => {
-  // Mode: 'story' (Hackathon Guided Narrative) vs 'free' (Manual Exploration)
-  const [viewMode, setViewMode] = useState<'story' | 'free'>('story');
+  // Mode: 'story' (Hackathon Guided Narrative) vs 'zack_cutaway' (Zack D. Anatomical Explainer) vs 'free' (Manual Exploration)
+  const [viewMode, setViewMode] = useState<'story' | 'free' | 'zack_cutaway'>('story');
   const [currentChapter, setCurrentChapter] = useState<number>(1);
   const [isAutoPlaying, setIsAutoPlaying] = useState<boolean>(true);
   const [autoPlayProgress, setAutoPlayProgress] = useState<number>(0);
@@ -163,6 +164,13 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
         { label: 'Arrhenius Decay Rate k', value: '0.055 / day', color: 'text-slate-200' },
         { label: 'Biot Conduction No', value: '0.14 (Lumped Heat)', color: 'text-emerald-400' },
       ],
+      interactiveAction: {
+        label: 'Launch Zack 3D Anatomical Cutaway (What Happens Inside)',
+        handler: () => {
+          setViewMode('zack_cutaway');
+          setIsAutoPlaying(false);
+        },
+      },
     },
     {
       id: 3,
@@ -283,7 +291,10 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
     }
   }, [currentChapter, viewMode]);
 
-  const currentCam = cameraPresets[cameraView] || cameraPresets.overview;
+  const currentCam =
+    viewMode === 'zack_cutaway'
+      ? { pos: [0, 2.5, 4.8] as [number, number, number], lookAt: [0, 2.3, 0] as [number, number, number] }
+      : (cameraPresets[cameraView] || cameraPresets.overview);
 
   const handleSelectRack = (info: any) => {
     setSelectedZone(info);
@@ -438,6 +449,20 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
             >
               <Sparkles className="w-3.5 h-3.5 text-blue-200" />
               <span>Story Mode</span>
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('zack_cutaway');
+                setIsAutoPlaying(false);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                viewMode === 'zack_cutaway'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/40 ring-2 ring-cyan-400'
+                  : 'text-cyan-400 hover:text-white hover:bg-slate-800 border border-cyan-500/40'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Zack 3D Explainer</span>
             </button>
             <button
               onClick={() => {
@@ -708,217 +733,225 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
           </>
         )}
 
-        {/* Complete Warehouse Architecture with Dock Reefer Truck & Emergency Alarms */}
-        <WarehouseArchitecture
-          chamberA={chamberA}
-          chamberB={chamberB}
-          chamberC={chamberC}
-          doorOpen={isDoorOpen}
-          coolingActive={isCoolingActive}
-          showReeferTruck={true}
-        />
-
-        {/* =========================================================================
-            5 DESIGNATED FRUIT SECTIONS & RACK SYSTEMS
-           ========================================================================= */}
-
-        {/* SECTION 1: BANANA BAY (Chamber A - Tropical Zone: 13.0°C) */}
-        <StorageRack
-          position={[-16, 0, -8]}
-          rackId="BANANA-BAY-01"
-          chamberName="Chamber A (Tropical)"
-          commodity="banana"
-          qualityScore={chamberA.quality}
-          temperatureC={chamberA.tempC}
-          humidityPct={chamberA.rhPct}
-          isSelected={selectedZone?.rackId === 'BANANA-BAY-01' || cameraView === 'banana'}
-          onSelect={handleSelectRack}
-        />
-        <StorageRack
-          position={[-16, 0, 2]}
-          rackId="BANANA-BAY-02"
-          chamberName="Chamber A (Tropical)"
-          commodity="banana"
-          qualityScore={Math.max(10, chamberA.quality - 2)}
-          temperatureC={chamberA.tempC}
-          humidityPct={chamberA.rhPct}
-          isSelected={selectedZone?.rackId === 'BANANA-BAY-02'}
-          onSelect={handleSelectRack}
-        />
-
-        {/* SECTION 2: ORANGE BAY (Chamber B - Citrus Zone: 8.5°C) */}
-        <StorageRack
-          position={[-8, 0, -8]}
-          rackId="ORANGE-BAY-01"
-          chamberName="Chamber B (Citrus Zone)"
-          commodity="orange"
-          qualityScore={chamberB.quality}
-          temperatureC={chamberB.tempC}
-          humidityPct={chamberB.rhPct}
-          isSelected={selectedZone?.rackId === 'ORANGE-BAY-01' || cameraView === 'orange'}
-          onSelect={handleSelectRack}
-        />
-        <StorageRack
-          position={[-8, 0, 2]}
-          rackId="ORANGE-BAY-02"
-          chamberName="Chamber B (Citrus Zone)"
-          commodity="orange"
-          qualityScore={Math.max(10, chamberB.quality - 1.5)}
-          temperatureC={chamberB.tempC}
-          humidityPct={chamberB.rhPct}
-          isSelected={selectedZone?.rackId === 'ORANGE-BAY-02'}
-          onSelect={handleSelectRack}
-        />
-
-        {/* SECTION 3: MANGO BAY (Chamber A - Tropical Zone: 12.5°C) */}
-        <StorageRack
-          position={[0, 0, -8]}
-          rackId="MANGO-BAY-01"
-          chamberName="Chamber A (Tropical)"
-          commodity="mango"
-          qualityScore={chamberA.quality - 1}
-          temperatureC={chamberA.tempC}
-          humidityPct={chamberA.rhPct}
-          isSelected={selectedZone?.rackId === 'MANGO-BAY-01' || cameraView === 'mango'}
-          onSelect={handleSelectRack}
-        />
-        <StorageRack
-          position={[0, 0, 2]}
-          rackId="MANGO-BAY-02"
-          chamberName="Chamber A (Tropical)"
-          commodity="mango"
-          qualityScore={chamberA.quality + 1}
-          temperatureC={chamberA.tempC}
-          humidityPct={chamberA.rhPct}
-          isSelected={selectedZone?.rackId === 'MANGO-BAY-02'}
-          onSelect={handleSelectRack}
-        />
-
-        {/* SECTION 4: GUAVA BAY (Chamber B - Subtropical Zone: 9.0°C) */}
-        <StorageRack
-          position={[8, 0, -8]}
-          rackId="GUAVA-BAY-01"
-          chamberName="Chamber B (Subtropical)"
-          commodity="guava"
-          qualityScore={chamberB.quality - 2}
-          temperatureC={chamberB.tempC}
-          humidityPct={chamberB.rhPct}
-          isSelected={selectedZone?.rackId === 'GUAVA-BAY-01' || cameraView === 'guava'}
-          onSelect={handleSelectRack}
-        />
-        <StorageRack
-          position={[8, 0, 2]}
-          rackId="GUAVA-BAY-02"
-          chamberName="Chamber B (Subtropical)"
-          commodity="guava"
-          qualityScore={chamberB.quality}
-          temperatureC={chamberB.tempC}
-          humidityPct={chamberB.rhPct}
-          isSelected={selectedZone?.rackId === 'GUAVA-BAY-02'}
-          onSelect={handleSelectRack}
-        />
-
-        {/* SECTION 5: GRAPES BAY (Chamber C - Controlled Atmosphere: 1.5°C) */}
-        <StorageRack
-          position={[16, 0, -8]}
-          rackId="GRAPE-BAY-01"
-          chamberName="Chamber C (Controlled Atm)"
-          commodity="grapes"
-          qualityScore={chamberC.quality}
-          temperatureC={chamberC.tempC}
-          humidityPct={chamberC.rhPct}
-          isSelected={selectedZone?.rackId === 'GRAPE-BAY-01' || cameraView === 'grapes'}
-          onSelect={handleSelectRack}
-        />
-        <StorageRack
-          position={[16, 0, 2]}
-          rackId="GRAPE-BAY-02"
-          chamberName="Chamber C (Controlled Atm)"
-          commodity="grapes"
-          qualityScore={Math.max(10, chamberC.quality - 1)}
-          temperatureC={chamberC.tempC}
-          humidityPct={chamberC.rhPct}
-          isSelected={selectedZone?.rackId === 'GRAPE-BAY-02'}
-          onSelect={handleSelectRack}
-        />
-
-        {/* =========================================================================
-            ANIMATED LOGISTICS MACHINERY & VEHICLES
-           ========================================================================= */}
-        {showLogistics && (
+        {/* Complete Warehouse Architecture or Zack D. 3D Cutaway Explainer */}
+        {viewMode === 'zack_cutaway' ? (
+          <ZackCutawayInspector onClose={() => setViewMode('story')} />
+        ) : (
           <>
-            <Forklift
-              position={[-2.2, 0, 8.5]}
-              rotation={[0, 1.35, 0]}
-              scale={1.05}
-              cargoCommodity="orange"
-              cargoQuality={93.5}
+            <WarehouseArchitecture
+              chamberA={chamberA}
+              chamberB={chamberB}
+              chamberC={chamberC}
+              doorOpen={isDoorOpen}
+              coolingActive={isCoolingActive}
+              showReeferTruck={true}
             />
 
-            <HandTruck
-              position={[-11, 0, 7.2]}
-              rotation={[0, 0.45, 0]}
-              commodity="orange"
-              qualityScore={94.0}
-            />
+            {/* =========================================================================
+                5 DESIGNATED FRUIT SECTIONS & RACK SYSTEMS
+               ========================================================================= */}
 
-            <HandTruck
-              position={[11, 0, 7.2]}
-              rotation={[0, -0.35, 0]}
+            {/* SECTION 1: BANANA BAY (Chamber A - Tropical Zone: 13.0°C) */}
+            <StorageRack
+              position={[-16, 0, -8]}
+              rackId="BANANA-BAY-01"
+              chamberName="Chamber A (Tropical)"
               commodity="banana"
-              qualityScore={92.5}
+              qualityScore={chamberA.quality}
+              temperatureC={chamberA.tempC}
+              humidityPct={chamberA.rhPct}
+              isSelected={selectedZone?.rackId === 'BANANA-BAY-01' || cameraView === 'banana'}
+              onSelect={handleSelectRack}
+            />
+            <StorageRack
+              position={[-16, 0, 2]}
+              rackId="BANANA-BAY-02"
+              chamberName="Chamber A (Tropical)"
+              commodity="banana"
+              qualityScore={Math.max(10, chamberA.quality - 2)}
+              temperatureC={chamberA.tempC}
+              humidityPct={chamberA.rhPct}
+              isSelected={selectedZone?.rackId === 'BANANA-BAY-02'}
+              onSelect={handleSelectRack}
+            />
+
+            {/* SECTION 2: ORANGE BAY (Chamber B - Citrus Zone: 8.5°C) */}
+            <StorageRack
+              position={[-8, 0, -8]}
+              rackId="ORANGE-BAY-01"
+              chamberName="Chamber B (Citrus Zone)"
+              commodity="orange"
+              qualityScore={chamberB.quality}
+              temperatureC={chamberB.tempC}
+              humidityPct={chamberB.rhPct}
+              isSelected={selectedZone?.rackId === 'ORANGE-BAY-01' || cameraView === 'orange'}
+              onSelect={handleSelectRack}
+            />
+            <StorageRack
+              position={[-8, 0, 2]}
+              rackId="ORANGE-BAY-02"
+              chamberName="Chamber B (Citrus Zone)"
+              commodity="orange"
+              qualityScore={Math.max(10, chamberB.quality - 1.5)}
+              temperatureC={chamberB.tempC}
+              humidityPct={chamberB.rhPct}
+              isSelected={selectedZone?.rackId === 'ORANGE-BAY-02'}
+              onSelect={handleSelectRack}
+            />
+
+            {/* SECTION 3: MANGO BAY (Chamber A - Tropical Zone: 12.5°C) */}
+            <StorageRack
+              position={[0, 0, -8]}
+              rackId="MANGO-BAY-01"
+              chamberName="Chamber A (Tropical)"
+              commodity="mango"
+              qualityScore={chamberA.quality - 1}
+              temperatureC={chamberA.tempC}
+              humidityPct={chamberA.rhPct}
+              isSelected={selectedZone?.rackId === 'MANGO-BAY-01' || cameraView === 'mango'}
+              onSelect={handleSelectRack}
+            />
+            <StorageRack
+              position={[0, 0, 2]}
+              rackId="MANGO-BAY-02"
+              chamberName="Chamber A (Tropical)"
+              commodity="mango"
+              qualityScore={chamberA.quality + 1}
+              temperatureC={chamberA.tempC}
+              humidityPct={chamberA.rhPct}
+              isSelected={selectedZone?.rackId === 'MANGO-BAY-02'}
+              onSelect={handleSelectRack}
+            />
+
+            {/* SECTION 4: GUAVA BAY (Chamber B - Subtropical Zone: 9.0°C) */}
+            <StorageRack
+              position={[8, 0, -8]}
+              rackId="GUAVA-BAY-01"
+              chamberName="Chamber B (Subtropical)"
+              commodity="guava"
+              qualityScore={chamberB.quality - 2}
+              temperatureC={chamberB.tempC}
+              humidityPct={chamberB.rhPct}
+              isSelected={selectedZone?.rackId === 'GUAVA-BAY-01' || cameraView === 'guava'}
+              onSelect={handleSelectRack}
+            />
+            <StorageRack
+              position={[8, 0, 2]}
+              rackId="GUAVA-BAY-02"
+              chamberName="Chamber B (Subtropical)"
+              commodity="guava"
+              qualityScore={chamberB.quality}
+              temperatureC={chamberB.tempC}
+              humidityPct={chamberB.rhPct}
+              isSelected={selectedZone?.rackId === 'GUAVA-BAY-02'}
+              onSelect={handleSelectRack}
+            />
+
+            {/* SECTION 5: GRAPES BAY (Chamber C - Controlled Atmosphere: 1.5°C) */}
+            <StorageRack
+              position={[16, 0, -8]}
+              rackId="GRAPE-BAY-01"
+              chamberName="Chamber C (Controlled Atm)"
+              commodity="grapes"
+              qualityScore={chamberC.quality}
+              temperatureC={chamberC.tempC}
+              humidityPct={chamberC.rhPct}
+              isSelected={selectedZone?.rackId === 'GRAPE-BAY-01' || cameraView === 'grapes'}
+              onSelect={handleSelectRack}
+            />
+            <StorageRack
+              position={[16, 0, 2]}
+              rackId="GRAPE-BAY-02"
+              chamberName="Chamber C (Controlled Atm)"
+              commodity="grapes"
+              qualityScore={Math.max(10, chamberC.quality - 1)}
+              temperatureC={chamberC.tempC}
+              humidityPct={chamberC.rhPct}
+              isSelected={selectedZone?.rackId === 'GRAPE-BAY-02'}
+              onSelect={handleSelectRack}
+            />
+
+            {/* =========================================================================
+                ANIMATED LOGISTICS MACHINERY & VEHICLES
+               ========================================================================= */}
+            {showLogistics && (
+              <>
+                <Forklift
+                  position={[-2.2, 0, 8.5]}
+                  rotation={[0, 1.35, 0]}
+                  scale={1.05}
+                  cargoCommodity="orange"
+                  cargoQuality={93.5}
+                />
+
+                <HandTruck
+                  position={[-11, 0, 7.2]}
+                  rotation={[0, 0.45, 0]}
+                  commodity="orange"
+                  qualityScore={94.0}
+                />
+
+                <HandTruck
+                  position={[11, 0, 7.2]}
+                  rotation={[0, -0.35, 0]}
+                  commodity="banana"
+                  qualityScore={92.5}
+                />
+              </>
+            )}
+
+            {/* Recirculating Airflow Stream Dynamics (Cyan when cooling, Amber when tripped) */}
+            {showAirflow && (
+              <AirflowParticles
+                speed={simulationState?.sim_speed || 1}
+                coolingActive={isCoolingActive}
+              />
+            )}
+
+            {/* Dynamic 5-Bay Thermal Heatmap Floor Blanket */}
+            <ThermalHeatmap
+              chamberA_temp={chamberA.tempC}
+              chamberB_temp={chamberB.tempC}
+              chamberC_temp={chamberC.tempC}
+              visible={showHeatmap}
             />
           </>
         )}
-
-        {/* Recirculating Airflow Stream Dynamics (Cyan when cooling, Amber when tripped) */}
-        {showAirflow && (
-          <AirflowParticles
-            speed={simulationState?.sim_speed || 1}
-            coolingActive={isCoolingActive}
-          />
-        )}
-
-        {/* Dynamic 5-Bay Thermal Heatmap Floor Blanket */}
-        <ThermalHeatmap
-          chamberA_temp={chamberA.tempC}
-          chamberB_temp={chamberB.tempC}
-          chamberC_temp={chamberC.tempC}
-          visible={showHeatmap}
-        />
       </Canvas>
 
       {/* =========================================================================
-          BOTTOM-LEFT: LIVE 5-FRUIT STORAGE MICROCLIMATE HUD PILLS
+          BOTTOM-LEFT: LIVE 5-FRUIT STORAGE MICROCLIMATE HUD PILLS (HIDDEN IN ZACK MODE)
          ========================================================================= */}
-      <div className="absolute bottom-16 left-4 z-20 hidden md:flex items-center gap-2 bg-slate-900/90 backdrop-blur-xl p-2 rounded-2xl border border-slate-700/80 text-xs shadow-2xl overflow-x-auto max-w-[84%]">
-        {[
-          { key: 'banana', name: 'Banana Bay', bay: 'Bay 1', temp: chamberA.tempC, rh: chamberA.rhPct, q: chamberA.quality, color: 'text-yellow-400', border: 'hover:border-yellow-500/60' },
-          { key: 'orange', name: 'Orange Bay', bay: 'Bay 2', temp: chamberB.tempC, rh: chamberB.rhPct, q: chamberB.quality, color: 'text-orange-400', border: 'hover:border-orange-500/60' },
-          { key: 'mango', name: 'Mango Bay', bay: 'Bay 3', temp: chamberA.tempC, rh: chamberA.rhPct, q: chamberA.quality, color: 'text-amber-400', border: 'hover:border-amber-500/60' },
-          { key: 'guava', name: 'Guava Bay', bay: 'Bay 4', temp: chamberB.tempC, rh: chamberB.rhPct, q: chamberB.quality, color: 'text-lime-400', border: 'hover:border-lime-500/60' },
-          { key: 'grapes', name: 'Grapes Bay', bay: 'Bay 5', temp: chamberC.tempC, rh: chamberC.rhPct, q: chamberC.quality, color: 'text-purple-400', border: 'hover:border-purple-500/60' },
-        ].map((item) => (
-          <button
-            key={item.key}
-            onClick={() => {
-              setViewMode('free');
-              setCameraView(item.key as any);
-            }}
-            className={`text-left px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/80 ${item.border} transition-all min-w-[130px]`}
-          >
-            <div className="flex items-center justify-between text-[10px] font-extrabold uppercase">
-              <span className={item.color}>{item.name}</span>
-              <span className="text-slate-500">{item.bay}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5 font-semibold text-slate-200 text-[11px]">
-              <span>{item.temp.toFixed(1)}°C</span>
-              <span>{item.rh.toFixed(0)}% RH</span>
-              <span className="text-emerald-400 font-bold">{item.q.toFixed(0)}%</span>
-            </div>
-          </button>
-        ))}
-      </div>
+      {viewMode !== 'zack_cutaway' && (
+        <div className="absolute bottom-16 left-4 z-20 hidden md:flex items-center gap-2 bg-slate-900/90 backdrop-blur-xl p-2 rounded-2xl border border-slate-700/80 text-xs shadow-2xl overflow-x-auto max-w-[84%]">
+          {[
+            { key: 'banana', name: 'Banana Bay', bay: 'Bay 1', temp: chamberA.tempC, rh: chamberA.rhPct, q: chamberA.quality, color: 'text-yellow-400', border: 'hover:border-yellow-500/60' },
+            { key: 'orange', name: 'Orange Bay', bay: 'Bay 2', temp: chamberB.tempC, rh: chamberB.rhPct, q: chamberB.quality, color: 'text-orange-400', border: 'hover:border-orange-500/60' },
+            { key: 'mango', name: 'Mango Bay', bay: 'Bay 3', temp: chamberA.tempC, rh: chamberA.rhPct, q: chamberA.quality, color: 'text-amber-400', border: 'hover:border-amber-500/60' },
+            { key: 'guava', name: 'Guava Bay', bay: 'Bay 4', temp: chamberB.tempC, rh: chamberB.rhPct, q: chamberB.quality, color: 'text-lime-400', border: 'hover:border-lime-500/60' },
+            { key: 'grapes', name: 'Grapes Bay', bay: 'Bay 5', temp: chamberC.tempC, rh: chamberC.rhPct, q: chamberC.quality, color: 'text-purple-400', border: 'hover:border-purple-500/60' },
+          ].map((item) => (
+            <button
+              key={item.key}
+              onClick={() => {
+                setViewMode('free');
+                setCameraView(item.key as any);
+              }}
+              className={`text-left px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/80 ${item.border} transition-all min-w-[130px]`}
+            >
+              <div className="flex items-center justify-between text-[10px] font-extrabold uppercase">
+                <span className={item.color}>{item.name}</span>
+                <span className="text-slate-500">{item.bay}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5 font-semibold text-slate-200 text-[11px]">
+                <span>{item.temp.toFixed(1)}°C</span>
+                <span>{item.rh.toFixed(0)}% RH</span>
+                <span className="text-emerald-400 font-bold">{item.q.toFixed(0)}%</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* =========================================================================
           RIGHT DRAWER: SCIENTIFIC CULTIVAR & MICROCLIMATE INSPECTOR
@@ -1015,84 +1048,86 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
       )}
 
       {/* =========================================================================
-          BOTTOM CONTROLS BAR: PHYSICS TICKER & INTERACTION CONTROLS
+          BOTTOM CONTROLS BAR: PHYSICS TICKER & INTERACTION CONTROLS (HIDDEN IN ZACK MODE)
          ========================================================================= */}
-      <div className="absolute bottom-3 left-4 z-20 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-xl px-3 py-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs">
-          {/* Play/Pause */}
-          <div className="flex items-center gap-1.5 pr-2 border-r border-slate-700">
-            <button
-              onClick={handleTogglePlay}
-              disabled={isUpdatingPhysics}
-              className={`p-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
-                isRunning
-                  ? 'bg-amber-600/90 text-white hover:bg-amber-500'
-                  : 'bg-emerald-600/90 text-white hover:bg-emerald-500'
-              }`}
-              title={isRunning ? 'Pause Digital Twin Physics' : 'Resume Simulation Physics'}
-            >
-              {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              <span className="text-[11px] hidden sm:inline">{isRunning ? 'Pause' : 'Resume'}</span>
-            </button>
-          </div>
-
-          {/* Time-Scale Speed Multiplier */}
-          <div className="flex items-center gap-1 px-1">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-              <Gauge className="w-3 h-3 text-blue-400" />
-              Speed:
-            </span>
-            {[0.5, 1.0, 2.0, 5.0].map((spd) => (
+      {viewMode !== 'zack_cutaway' && (
+        <div className="absolute bottom-3 left-4 z-20 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-xl px-3 py-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs">
+            {/* Play/Pause */}
+            <div className="flex items-center gap-1.5 pr-2 border-r border-slate-700">
               <button
-                key={spd}
+                onClick={handleTogglePlay}
                 disabled={isUpdatingPhysics}
-                onClick={() => handleChangeSpeed(spd)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                  currentSimSpeed === spd
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                className={`p-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
+                  isRunning
+                    ? 'bg-amber-600/90 text-white hover:bg-amber-500'
+                    : 'bg-emerald-600/90 text-white hover:bg-emerald-500'
                 }`}
+                title={isRunning ? 'Pause Digital Twin Physics' : 'Resume Simulation Physics'}
               >
-                {spd}x
+                {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                <span className="text-[11px] hidden sm:inline">{isRunning ? 'Pause' : 'Resume'}</span>
               </button>
-            ))}
-          </div>
+            </div>
 
-          {/* Bay Shutter Door Physical Toggle */}
-          <div className="pl-2 border-l border-slate-700 flex items-center gap-1.5">
-            <button
-              onClick={handleToggleDoor}
-              disabled={isUpdatingPhysics}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all border ${
-                isDoorOpen
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-              }`}
-              title="Toggle Warehouse Industrial Dock Shutter"
-            >
-              <DoorOpen className={`w-3.5 h-3.5 ${isDoorOpen ? 'text-amber-400' : 'text-slate-400'}`} />
-              <span>Bay Shutter: {isDoorOpen ? 'OPEN' : 'CLOSED'}</span>
-            </button>
-          </div>
+            {/* Time-Scale Speed Multiplier */}
+            <div className="flex items-center gap-1 px-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <Gauge className="w-3 h-3 text-blue-400" />
+                Speed:
+              </span>
+              {[0.5, 1.0, 2.0, 5.0].map((spd) => (
+                <button
+                  key={spd}
+                  disabled={isUpdatingPhysics}
+                  onClick={() => handleChangeSpeed(spd)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                    currentSimSpeed === spd
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  {spd}x
+                </button>
+              ))}
+            </div>
 
-          {/* Refrigeration Compressor Toggle */}
-          <div className="pl-1 flex items-center gap-1.5">
-            <button
-              onClick={handleToggleReefer}
-              disabled={isUpdatingPhysics}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all border ${
-                isCoolingActive
-                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/50 hover:bg-blue-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border-rose-500/50 hover:bg-rose-500/30'
-              }`}
-              title="Toggle Primary HVAC Compressor Active State"
-            >
-              <Snowflake className={`w-3.5 h-3.5 ${isCoolingActive ? 'text-blue-400' : 'text-rose-400'}`} />
-              <span>Cooling: {isCoolingActive ? 'RUNNING' : 'FAULT/CUT'}</span>
-            </button>
+            {/* Bay Shutter Door Physical Toggle */}
+            <div className="pl-2 border-l border-slate-700 flex items-center gap-1.5">
+              <button
+                onClick={handleToggleDoor}
+                disabled={isUpdatingPhysics}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all border ${
+                  isDoorOpen
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                }`}
+                title="Toggle Warehouse Industrial Dock Shutter"
+              >
+                <DoorOpen className={`w-3.5 h-3.5 ${isDoorOpen ? 'text-amber-400' : 'text-slate-400'}`} />
+                <span>Bay Shutter: {isDoorOpen ? 'OPEN' : 'CLOSED'}</span>
+              </button>
+            </div>
+
+            {/* Refrigeration Compressor Toggle */}
+            <div className="pl-1 flex items-center gap-1.5">
+              <button
+                onClick={handleToggleReefer}
+                disabled={isUpdatingPhysics}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all border ${
+                  isCoolingActive
+                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/50 hover:bg-blue-500/30'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/50 hover:bg-rose-500/30'
+                }`}
+                title="Toggle Primary HVAC Compressor Active State"
+              >
+                <Snowflake className={`w-3.5 h-3.5 ${isCoolingActive ? 'text-blue-400' : 'text-rose-400'}`} />
+                <span>Cooling: {isCoolingActive ? 'RUNNING' : 'FAULT/CUT'}</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

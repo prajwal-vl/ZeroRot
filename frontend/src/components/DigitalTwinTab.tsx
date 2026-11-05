@@ -14,7 +14,8 @@ import {
   Gauge,
   ShieldCheck,
   ChevronRight,
-  PlusCircle
+  PlusCircle,
+  Eye
 } from 'lucide-react';
 import { SimulationState } from '../types/simulation';
 import { WarehouseCanvas } from './three/WarehouseCanvas';
@@ -75,6 +76,10 @@ export const DigitalTwinTab: React.FC<DigitalTwinTabProps> = ({
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
               HACKATHON PRODUCT NARRATIVE MODE
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200">
+              <Eye className="w-3.5 h-3.5 text-cyan-600" />
+              ZACK 3D EXPLAINER CUTAWAYS
             </span>
             <DataBadge label="SIMULATED" sourceText="High-Fidelity Three.js WebGL Engine" />
           </div>
