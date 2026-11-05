@@ -65,8 +65,25 @@ COMMODITY_THERMAL_PROPS = {
         "optimal_temp_c": 0.0,
         "temp_min_c": -1.0,
         "temp_max_c": 2.0,
+    },
+    "orange": {
+        "specific_heat": 3810,
+        "respiration_base_20c": 0.025,
+        "q10_respiration": 1.9,
+        "optimal_temp_c": 5.0,
+        "temp_min_c": 3.0,
+        "temp_max_c": 8.0,
+    },
+    "guava": {
+        "specific_heat": 3780,
+        "respiration_base_20c": 0.070,
+        "q10_respiration": 2.2,
+        "optimal_temp_c": 9.0,
+        "temp_min_c": 6.0,
+        "temp_max_c": 12.0,
     }
 }
+COMMODITY_THERMAL_PROPS["grapes"] = COMMODITY_THERMAL_PROPS["grape"]
 
 class ThermalModel:
     """

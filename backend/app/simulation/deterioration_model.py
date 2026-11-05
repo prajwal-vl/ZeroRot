@@ -76,8 +76,29 @@ COMMODITY_SHELF_LIFE_PARAMS = {
         "optimal_rh_min": 90.0,
         "optimal_rh_max": 95.0,
         "critical_quality_threshold": 40.0
+    },
+    "orange": {
+        "optimal_temp_c": 5.0,
+        "chilling_injury_threshold_c": 2.0,
+        "max_shelf_life_days": 60.0,
+        "base_decay_rate_day": 0.0167,
+        "q10_decay": 1.8,
+        "optimal_rh_min": 85.0,
+        "optimal_rh_max": 90.0,
+        "critical_quality_threshold": 35.0
+    },
+    "guava": {
+        "optimal_temp_c": 9.0,
+        "chilling_injury_threshold_c": 5.0,
+        "max_shelf_life_days": 21.0,
+        "base_decay_rate_day": 0.0476,
+        "q10_decay": 2.3,
+        "optimal_rh_min": 90.0,
+        "optimal_rh_max": 95.0,
+        "critical_quality_threshold": 35.0
     }
 }
+COMMODITY_SHELF_LIFE_PARAMS["grapes"] = COMMODITY_SHELF_LIFE_PARAMS["grape"]
 
 class DeteriorationModel:
     """

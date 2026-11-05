@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import * as THREE from 'three';
+import { Html } from '@react-three/drei';
 import { ProduceModel } from './ProduceModel';
 
 interface StorageRackProps {
@@ -10,6 +11,7 @@ interface StorageRackProps {
   qualityScore: number;
   temperatureC: number;
   humidityPct: number;
+  sectionTitle?: string;
   isSelected?: boolean;
   onSelect?: (info: {
     rackId: string;
@@ -55,6 +57,16 @@ export const StorageRack: React.FC<StorageRackProps> = ({
   const frameColor = isSelected ? '#3B82F6' : hovered ? '#60A5FA' : '#1E3A8A';
   const beamColor = '#EA580C'; // Industrial OSHA safety orange
 
+  const commColors: Record<string, { bg: string; text: string; border: string }> = {
+    banana: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/50' },
+    orange: { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/50' },
+    mango: { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/50' },
+    guava: { bg: 'bg-lime-500/20', text: 'text-lime-400', border: 'border-lime-500/50' },
+    grape: { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/50' },
+    grapes: { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/50' },
+  };
+  const activeColor = commColors[commodity.toLowerCase()] || { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/50' };
+
   return (
     <group
       position={position}
@@ -65,6 +77,41 @@ export const StorageRack: React.FC<StorageRackProps> = ({
       }}
       onPointerOut={() => setHovered(false)}
     >
+      {/* Overhead Section Header Billboard */}
+      <Html position={[0, 4.95, 0]} center distanceFactor={22}>
+        <div
+          onClick={handleClick}
+          className={`cursor-pointer transition-all duration-200 select-none px-3 py-1.5 rounded-lg border backdrop-blur-md shadow-xl flex items-center gap-2 whitespace-nowrap ${
+            isSelected
+              ? 'bg-blue-950/95 border-blue-400 ring-2 ring-blue-500/50 scale-105'
+              : hovered
+              ? 'bg-slate-900/95 border-slate-500 scale-102'
+              : 'bg-slate-950/90 border-slate-700/80'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full animate-pulse ${
+            qualityScore > 80 ? 'bg-emerald-400' : qualityScore > 60 ? 'bg-amber-400' : 'bg-red-500'
+          }`} />
+          <div className="flex flex-col text-left">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
+              <span>{commodity.toUpperCase()} SECTION</span>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${activeColor.bg} ${activeColor.text} border ${activeColor.border}`}>
+                {rackId}
+              </span>
+            </span>
+            <span className="text-[9px] text-slate-400 font-medium">
+              {temperatureC.toFixed(1)}°C &bull; {qualityScore.toFixed(0)}% Fresh
+            </span>
+          </div>
+        </div>
+      </Html>
+
+      {/* Top Header Signboard Mount Plate */}
+      <mesh position={[0, 4.55, 0]}>
+        <boxGeometry args={[2.5, 0.22, 0.04]} />
+        <meshStandardMaterial color={frameColor} roughness={0.4} metalness={0.6} />
+      </mesh>
+
       {/* 4 Vertical Steel Columns */}
       {[
         [-1.4, -0.7],

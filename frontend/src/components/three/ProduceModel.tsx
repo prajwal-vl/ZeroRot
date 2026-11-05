@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 
 interface ProduceModelProps {
-  commodity: 'tomato' | 'banana' | 'mango' | 'potato' | 'apple' | 'grape' | string;
+  commodity: 'banana' | 'orange' | 'mango' | 'guava' | 'grape' | 'tomato' | 'potato' | 'apple' | string;
   qualityScore: number; // 0 to 100
   position?: [number, number, number];
   scale?: number;
@@ -44,6 +44,12 @@ export const ProduceModel: React.FC<ProduceModelProps> = ({
     } else if (comm.includes('grape')) {
       freshHex = '#7C3AED'; // Deep translucent purple
       rotHex = '#1E1B4B';   // Shriveled raisin dark
+    } else if (comm.includes('orange')) {
+      freshHex = '#EA580C'; // Vibrant citrus orange
+      rotHex = '#1C1917';   // Moldy dark greenish-black decay
+    } else if (comm.includes('guava')) {
+      freshHex = '#84CC16'; // Crisp light green turning lime
+      rotHex = '#3B2F2F';   // Soft brown necrotic skin
     }
 
     const cFresh = new THREE.Color(freshHex);
@@ -94,6 +100,55 @@ export const ProduceModel: React.FC<ProduceModelProps> = ({
             roughness={roughness}
             metalness={metalness}
           />
+        </mesh>
+      </group>
+    );
+  }
+
+  if (comm.includes('orange')) {
+    // Citrus sphere with peel texture and green stem button
+    return (
+      <group position={position} scale={[scale, scale, scale]}>
+        <mesh scale={[1.05, 1.0, 1.05]}>
+          <sphereGeometry args={[0.13, 24, 24]} />
+          <meshStandardMaterial
+            color={baseColor}
+            roughness={Math.max(0.38, roughness)}
+            metalness={metalness * 0.5}
+          />
+        </mesh>
+        {/* Tiny green stem button */}
+        <mesh position={[0, 0.13, 0]}>
+          <cylinderGeometry args={[0.012, 0.018, 0.015, 6]} />
+          <meshStandardMaterial color={freshness > 0.4 ? '#166534' : '#451A03'} roughness={0.8} />
+        </mesh>
+        {/* Mold patch visible when decayed */}
+        {freshness < 0.5 && (
+          <mesh position={[0.06, 0.05, 0.08]} rotation={[0.4, 0.2, 0.1]}>
+            <circleGeometry args={[0.055, 12]} />
+            <meshStandardMaterial color="#064E3B" roughness={0.95} transparent opacity={0.85 * (1 - freshness)} />
+          </mesh>
+        )}
+      </group>
+    );
+  }
+
+  if (comm.includes('guava')) {
+    // Pear-shaped ribbed guava with persistent bottom calyx
+    return (
+      <group position={position} scale={[scale, scale, scale]}>
+        <mesh scale={[0.95, 1.15, 0.95]}>
+          <sphereGeometry args={[0.13, 22, 22]} />
+          <meshStandardMaterial
+            color={baseColor}
+            roughness={roughness}
+            metalness={metalness * 0.2}
+          />
+        </mesh>
+        {/* Persistent bottom calyx crown */}
+        <mesh position={[0, -0.14, 0]} rotation={[Math.PI, 0, 0]}>
+          <coneGeometry args={[0.035, 0.03, 5]} />
+          <meshStandardMaterial color="#365314" roughness={0.9} />
         </mesh>
       </group>
     );

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,21 +6,19 @@ import { WarehouseArchitecture } from './WarehouseArchitecture';
 import { StorageRack } from './StorageRack';
 import { AirflowParticles } from './AirflowParticles';
 import { ThermalHeatmap } from './ThermalHeatmap';
+import { HandTruck } from './HandTruck';
 import {
-  Maximize2,
-  Eye,
-  Thermometer,
-  Droplets,
-  Wind,
   Layers,
-  Sparkles,
-  CheckCircle2,
+  Wind,
   X,
   Compass,
-  Activity,
   Box,
-  ExternalLink,
-  ShieldCheck
+  Truck,
+  Building2,
+  CheckCircle2,
+  Thermometer,
+  Droplets,
+  Activity
 } from 'lucide-react';
 import { SimulationState } from '../../types/simulation';
 
@@ -30,7 +28,13 @@ interface WarehouseCanvasProps {
 }
 
 // Camera animator component to smoothly tween camera position
-function CameraController({ targetPosition, targetLookAt }: { targetPosition: [number, number, number]; targetLookAt: [number, number, number] }) {
+function CameraController({
+  targetPosition,
+  targetLookAt,
+}: {
+  targetPosition: [number, number, number];
+  targetLookAt: [number, number, number];
+}) {
   useFrame(({ camera }) => {
     camera.position.lerp(new THREE.Vector3(...targetPosition), 0.06);
     camera.lookAt(new THREE.Vector3(...targetLookAt));
@@ -40,13 +44,17 @@ function CameraController({ targetPosition, targetLookAt }: { targetPosition: [n
 
 export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
   simulationState,
-  onRefreshState,
 }) => {
-  // Model source state: 'sketchfab' (Photorealistic 3D Warehouse) or 'three' (Thermal & Airflow Sensor Twin)
-  const [modelSource, setModelSource] = useState<'sketchfab' | 'three'>('sketchfab');
+  // Model source state:
+  // 'sketchfab_racks' (Warehouse Storage System with Hand Truck by C-MES Solutions Ltd.)
+  // 'three' (Interactive Three.js Digital Twin with 5 Fruit Sections and Hand Trucks)
+  // 'sketchfab_warehouse' (Warehouse Facility Complex by Ramzi Sfeir)
+  const [modelSource, setModelSource] = useState<'sketchfab_racks' | 'three' | 'sketchfab_warehouse'>('sketchfab_racks');
 
   // Camera perspective state for Three.js engine
-  const [cameraView, setCameraView] = useState<'overview' | 'chamber_a' | 'chamber_b' | 'chamber_c' | 'loading_dock' | 'top_down'>('overview');
+  const [cameraView, setCameraView] = useState<
+    'overview' | 'banana' | 'orange' | 'mango' | 'guava' | 'grapes' | 'loading_dock' | 'top_down'
+  >('overview');
   const [showHeatmap, setShowHeatmap] = useState<boolean>(false);
   const [showAirflow, setShowAirflow] = useState<boolean>(true);
   const [selectedZone, setSelectedZone] = useState<any | null>(null);
@@ -62,24 +70,26 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
     quality: chambers.chamber_a?.quality_score ?? 91.5,
   };
   const chamberB = {
-    tempC: chambers.chamber_b?.internal_temp_c ?? chambers.chamber_b?.temp_c ?? 10.5,
-    rhPct: chambers.chamber_b?.internal_rh_pct ?? chambers.chamber_b?.rh_pct ?? 89.0,
+    tempC: chambers.chamber_b?.internal_temp_c ?? chambers.chamber_b?.temp_c ?? 8.5,
+    rhPct: chambers.chamber_b?.internal_rh_pct ?? chambers.chamber_b?.rh_pct ?? 88.0,
     o2Pct: chambers.chamber_b?.internal_o2_pct ?? chambers.chamber_b?.o2_pct ?? 20.9,
-    quality: chambers.chamber_b?.quality_score ?? 88.0,
+    quality: chambers.chamber_b?.quality_score ?? 93.0,
   };
   const chamberC = {
-    tempC: chambers.chamber_c?.internal_temp_c ?? chambers.chamber_c?.temp_c ?? 2.2,
-    rhPct: chambers.chamber_c?.internal_rh_pct ?? chambers.chamber_c?.rh_pct ?? 74.0,
+    tempC: chambers.chamber_c?.internal_temp_c ?? chambers.chamber_c?.temp_c ?? 1.5,
+    rhPct: chambers.chamber_c?.internal_rh_pct ?? chambers.chamber_c?.rh_pct ?? 92.0,
     o2Pct: chambers.chamber_c?.internal_o2_pct ?? chambers.chamber_c?.o2_pct ?? 14.5,
-    quality: chambers.chamber_c?.quality_score ?? 94.0,
+    quality: chambers.chamber_c?.quality_score ?? 95.0,
   };
 
-  // Camera targets for each view
+  // Camera targets for each fruit bay and key perspective
   const cameraPresets: Record<string, { pos: [number, number, number]; lookAt: [number, number, number] }> = {
-    overview: { pos: [22, 17, 24], lookAt: [0, 2, 0] },
-    chamber_a: { pos: [-14, 8, 8], lookAt: [-14, 2, -4] },
-    chamber_b: { pos: [0, 8, 8], lookAt: [0, 2, -4] },
-    chamber_c: { pos: [14, 8, 8], lookAt: [14, 2, -4] },
+    overview: { pos: [22, 18, 26], lookAt: [0, 2, 0] },
+    banana: { pos: [-16, 7, 10], lookAt: [-16, 2, -3] },
+    orange: { pos: [-8, 7, 10], lookAt: [-8, 2, -3] },
+    mango: { pos: [0, 7, 10], lookAt: [0, 2, -3] },
+    guava: { pos: [8, 7, 10], lookAt: [8, 2, -3] },
+    grapes: { pos: [16, 7, 10], lookAt: [16, 2, -3] },
     loading_dock: { pos: [0, 5, 23], lookAt: [0, 2, 12] },
     top_down: { pos: [0, 36, 0.1], lookAt: [0, 0, 0] },
   };
@@ -88,19 +98,19 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
 
   return (
     <div className="relative w-full h-[640px] bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-md select-none">
-      {/* 1. Mode Switcher (Photorealistic Sketchfab vs Three.js Thermal Twin) */}
+      {/* 1. View Mode Switcher */}
       <div className="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1 rounded-lg border border-slate-700 text-xs shadow-lg">
           <button
-            onClick={() => setModelSource('sketchfab')}
+            onClick={() => setModelSource('sketchfab_racks')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              modelSource === 'sketchfab'
+              modelSource === 'sketchfab_racks'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
           >
             <Box className="w-3.5 h-3.5" />
-            <span>Photorealistic 3D Warehouse (Sketchfab)</span>
+            <span>Storage Racks &amp; Hand Truck (Sketchfab)</span>
           </button>
 
           <button
@@ -112,22 +122,36 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Thermal &amp; Sensor Twin (Three.js)</span>
+            <span>5-Fruit Storage Twin (Three.js 3D)</span>
+          </button>
+
+          <button
+            onClick={() => setModelSource('sketchfab_warehouse')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              modelSource === 'sketchfab_warehouse'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Warehouse Facility (Sketchfab)</span>
           </button>
         </div>
 
         {/* Camera presets for Three.js engine */}
         {modelSource === 'three' && (
-          <div className="hidden sm:flex items-center gap-1 bg-slate-900/85 backdrop-blur-md p-1 rounded-lg border border-slate-700 text-xs shadow-md">
+          <div className="hidden xl:flex items-center gap-1 bg-slate-900/85 backdrop-blur-md p-1 rounded-lg border border-slate-700 text-xs shadow-md">
             <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase flex items-center gap-1">
               <Compass className="w-3.5 h-3.5 text-blue-400" />
-              Cam:
+              Focus:
             </span>
             {[
-              { key: 'overview', label: 'Overview' },
-              { key: 'chamber_a', label: 'Ch. A' },
-              { key: 'chamber_b', label: 'Ch. B' },
-              { key: 'chamber_c', label: 'Ch. C' },
+              { key: 'overview', label: 'All Bays' },
+              { key: 'banana', label: 'Banana' },
+              { key: 'orange', label: 'Orange' },
+              { key: 'mango', label: 'Mango' },
+              { key: 'guava', label: 'Guava' },
+              { key: 'grapes', label: 'Grapes' },
               { key: 'loading_dock', label: 'Dock' },
               { key: 'top_down', label: 'Top' },
             ].map((btn) => (
@@ -147,13 +171,19 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
         )}
       </div>
 
-      {/* 2. Top-Right: Heatmap / Airflow Toggles or Sketchfab Status */}
+      {/* 2. Top-Right: Heatmap / Airflow Toggles or Model Status */}
       <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-        {modelSource === 'sketchfab' ? (
+        {modelSource === 'sketchfab_racks' ? (
           <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-200 flex items-center gap-2 shadow-sm">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="font-semibold text-xs">Sketchfab 3D Model Active</span>
-            <span className="text-slate-400 text-[11px]">| Full 360° Orbit &amp; Zoom</span>
+            <span className="font-semibold text-xs">C-MES Storage System 3D</span>
+            <span className="text-slate-400 text-[11px]">| 360° Interactive Orbit</span>
+          </div>
+        ) : modelSource === 'sketchfab_warehouse' ? (
+          <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-200 flex items-center gap-2 shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="font-semibold text-xs">Warehouse Facility 3D</span>
+            <span className="text-slate-400 text-[11px]">| 360° Orbit</span>
           </div>
         ) : (
           <>
@@ -184,8 +214,54 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
         )}
       </div>
 
-      {/* 3. 3D Model Display Viewport */}
-      {modelSource === 'sketchfab' ? (
+      {/* 3. Viewport Renderers */}
+      {modelSource === 'sketchfab_racks' ? (
+        /* Embed: Warehouse Storage System with Hand Truck */
+        <div className="sketchfab-embed-wrapper w-full h-full relative bg-slate-950">
+          <iframe
+            title="Warehouse Storage System with Hand Truck"
+            className="w-full h-full border-0"
+            allowFullScreen
+            allow="autoplay; fullscreen; xr-spatial-tracking"
+            xr-spatial-tracking="true"
+            execution-while-out-of-viewport="true"
+            execution-while-not-rendered="true"
+            web-share="true"
+            src="https://sketchfab.com/models/8c8f610dd1d5410f8b8fc15d758dcd8d/embed?autostart=1&ui_theme=dark&dnt=1"
+          />
+
+          {/* Model Attribution Bar */}
+          <div className="absolute bottom-3 right-4 z-20 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] text-slate-400 border border-slate-700 shadow-md">
+            <a
+              href="https://sketchfab.com/3d-models/warehouse-storage-system-with-hand-truck-8c8f610dd1d5410f8b8fc15d758dcd8d"
+              target="_blank"
+              rel="noreferrer nofollow"
+              className="text-blue-400 font-bold hover:underline"
+            >
+              Warehouse Storage System with Hand Truck
+            </a>{' '}
+            by{' '}
+            <a
+              href="https://sketchfab.com/c-mes"
+              target="_blank"
+              rel="noreferrer nofollow"
+              className="text-blue-400 font-semibold hover:underline"
+            >
+              C-MES Solutions Ltd.
+            </a>{' '}
+            on{' '}
+            <a
+              href="https://sketchfab.com"
+              target="_blank"
+              rel="noreferrer nofollow"
+              className="text-blue-400 font-semibold hover:underline"
+            >
+              Sketchfab
+            </a>
+          </div>
+        </div>
+      ) : modelSource === 'sketchfab_warehouse' ? (
+        /* Embed: Warehouse Architecture Complex */
         <div className="sketchfab-embed-wrapper w-full h-full relative bg-slate-950">
           <iframe
             title="Warehouse"
@@ -199,7 +275,6 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
             src="https://sketchfab.com/models/b14a00ce67b74e2cb21c9bd64215fbbd/embed?autostart=1&ui_theme=dark&dnt=1"
           />
 
-          {/* Model Attribution Bar */}
           <div className="absolute bottom-3 right-4 z-20 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] text-slate-400 border border-slate-700 shadow-md">
             <a
               href="https://sketchfab.com/3d-models/warehouse-b14a00ce67b74e2cb21c9bd64215fbbd"
@@ -207,7 +282,7 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
               rel="noreferrer nofollow"
               className="text-blue-400 font-bold hover:underline"
             >
-              Warehouse 3D Model
+              Warehouse
             </a>{' '}
             by{' '}
             <a
@@ -230,18 +305,18 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
           </div>
         </div>
       ) : (
-        /* Three.js R3F WebGL Canvas */
+        /* Three.js R3F WebGL Canvas with 5 Fruit Sections */
         <Canvas
           shadows
-          camera={{ position: [22, 17, 24], fov: 46 }}
+          camera={{ position: [22, 18, 26], fov: 46 }}
           gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
         >
           <CameraController targetPosition={currentCam.pos} targetLookAt={currentCam.lookAt} />
           <OrbitControls
             makeDefault
             maxPolarAngle={Math.PI / 2 - 0.05}
-            minDistance={5}
-            maxDistance={60}
+            minDistance={4}
+            maxDistance={65}
             dampingFactor={0.05}
           />
 
@@ -263,109 +338,138 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
             chamberC={chamberC}
           />
 
-          {/* Chamber A Racks (Mangoes & Bananas) */}
+          {/* SECTION 1: BANANA BAY (Chamber A - Tropical: 13.0°C) */}
           <StorageRack
             position={[-16, 0, -8]}
-            rackId="RACK-A1"
-            chamberName="Chamber A (Tropical)"
-            commodity="mango"
-            qualityScore={chamberA.quality}
-            temperatureC={chamberA.tempC}
-            humidityPct={chamberA.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-A1'}
-            onSelect={setSelectedZone}
-          />
-          <StorageRack
-            position={[-12, 0, -8]}
-            rackId="RACK-A2"
-            chamberName="Chamber A (Tropical)"
-            commodity="banana"
-            qualityScore={chamberA.quality - 2}
-            temperatureC={chamberA.tempC}
-            humidityPct={chamberA.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-A2'}
-            onSelect={setSelectedZone}
-          />
-          <StorageRack
-            position={[-14, 0, 2]}
-            rackId="RACK-A3"
+            rackId="BANANA-BAY-01"
             chamberName="Chamber A (Tropical)"
             commodity="banana"
             qualityScore={chamberA.quality}
             temperatureC={chamberA.tempC}
             humidityPct={chamberA.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-A3'}
+            isSelected={selectedZone?.rackId === 'BANANA-BAY-01'}
+            onSelect={setSelectedZone}
+          />
+          <StorageRack
+            position={[-16, 0, 2]}
+            rackId="BANANA-BAY-02"
+            chamberName="Chamber A (Tropical)"
+            commodity="banana"
+            qualityScore={Math.max(10, chamberA.quality - 2)}
+            temperatureC={chamberA.tempC}
+            humidityPct={chamberA.rhPct}
+            isSelected={selectedZone?.rackId === 'BANANA-BAY-02'}
             onSelect={setSelectedZone}
           />
 
-          {/* Chamber B Racks (Tomatoes & Apples) */}
+          {/* SECTION 2: ORANGE BAY (Chamber B - Citrus: 8.5°C) */}
           <StorageRack
-            position={[-2, 0, -8]}
-            rackId="RACK-B1"
-            chamberName="Chamber B (Solanaceous)"
-            commodity="tomato"
+            position={[-8, 0, -8]}
+            rackId="ORANGE-BAY-01"
+            chamberName="Chamber B (Citrus Zone)"
+            commodity="orange"
             qualityScore={chamberB.quality}
             temperatureC={chamberB.tempC}
             humidityPct={chamberB.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-B1'}
+            isSelected={selectedZone?.rackId === 'ORANGE-BAY-01'}
             onSelect={setSelectedZone}
           />
           <StorageRack
-            position={[2, 0, -8]}
-            rackId="RACK-B2"
-            chamberName="Chamber B (Solanaceous)"
-            commodity="apple"
-            qualityScore={chamberB.quality + 2}
+            position={[-8, 0, 2]}
+            rackId="ORANGE-BAY-02"
+            chamberName="Chamber B (Citrus Zone)"
+            commodity="orange"
+            qualityScore={Math.max(10, chamberB.quality - 1.5)}
             temperatureC={chamberB.tempC}
             humidityPct={chamberB.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-B2'}
+            isSelected={selectedZone?.rackId === 'ORANGE-BAY-02'}
+            onSelect={setSelectedZone}
+          />
+
+          {/* SECTION 3: MANGO BAY (Chamber A - Tropical: 12.5°C) */}
+          <StorageRack
+            position={[0, 0, -8]}
+            rackId="MANGO-BAY-01"
+            chamberName="Chamber A (Tropical)"
+            commodity="mango"
+            qualityScore={chamberA.quality - 1}
+            temperatureC={chamberA.tempC}
+            humidityPct={chamberA.rhPct}
+            isSelected={selectedZone?.rackId === 'MANGO-BAY-01'}
             onSelect={setSelectedZone}
           />
           <StorageRack
             position={[0, 0, 2]}
-            rackId="RACK-B3"
-            chamberName="Chamber B (Solanaceous)"
-            commodity="tomato"
-            qualityScore={chamberB.quality}
-            temperatureC={chamberB.tempC}
-            humidityPct={chamberB.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-B3'}
+            rackId="MANGO-BAY-02"
+            chamberName="Chamber A (Tropical)"
+            commodity="mango"
+            qualityScore={chamberA.quality + 1}
+            temperatureC={chamberA.tempC}
+            humidityPct={chamberA.rhPct}
+            isSelected={selectedZone?.rackId === 'MANGO-BAY-02'}
             onSelect={setSelectedZone}
           />
 
-          {/* Chamber C Racks (Potatoes & Grapes) */}
+          {/* SECTION 4: GUAVA BAY (Chamber B - Subtropical: 9.0°C) */}
           <StorageRack
-            position={[12, 0, -8]}
-            rackId="RACK-C1"
-            chamberName="Chamber C (Controlled Atm)"
-            commodity="potato"
-            qualityScore={chamberC.quality}
-            temperatureC={chamberC.tempC}
-            humidityPct={chamberC.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-C1'}
+            position={[8, 0, -8]}
+            rackId="GUAVA-BAY-01"
+            chamberName="Chamber B (Subtropical)"
+            commodity="guava"
+            qualityScore={chamberB.quality - 2}
+            temperatureC={chamberB.tempC}
+            humidityPct={chamberB.rhPct}
+            isSelected={selectedZone?.rackId === 'GUAVA-BAY-01'}
             onSelect={setSelectedZone}
           />
+          <StorageRack
+            position={[8, 0, 2]}
+            rackId="GUAVA-BAY-02"
+            chamberName="Chamber B (Subtropical)"
+            commodity="guava"
+            qualityScore={chamberB.quality}
+            temperatureC={chamberB.tempC}
+            humidityPct={chamberB.rhPct}
+            isSelected={selectedZone?.rackId === 'GUAVA-BAY-02'}
+            onSelect={setSelectedZone}
+          />
+
+          {/* SECTION 5: GRAPES BAY (Chamber C - Controlled Atm: 1.5°C) */}
           <StorageRack
             position={[16, 0, -8]}
-            rackId="RACK-C2"
+            rackId="GRAPE-BAY-01"
             chamberName="Chamber C (Controlled Atm)"
-            commodity="grape"
-            qualityScore={chamberC.quality - 1}
-            temperatureC={chamberC.tempC}
-            humidityPct={chamberC.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-C2'}
-            onSelect={setSelectedZone}
-          />
-          <StorageRack
-            position={[14, 0, 2]}
-            rackId="RACK-C3"
-            chamberName="Chamber C (Controlled Atm)"
-            commodity="potato"
+            commodity="grapes"
             qualityScore={chamberC.quality}
             temperatureC={chamberC.tempC}
             humidityPct={chamberC.rhPct}
-            isSelected={selectedZone?.rackId === 'RACK-C3'}
+            isSelected={selectedZone?.rackId === 'GRAPE-BAY-01'}
             onSelect={setSelectedZone}
+          />
+          <StorageRack
+            position={[16, 0, 2]}
+            rackId="GRAPE-BAY-02"
+            chamberName="Chamber C (Controlled Atm)"
+            commodity="grapes"
+            qualityScore={Math.max(10, chamberC.quality - 1)}
+            temperatureC={chamberC.tempC}
+            humidityPct={chamberC.rhPct}
+            isSelected={selectedZone?.rackId === 'GRAPE-BAY-02'}
+            onSelect={setSelectedZone}
+          />
+
+          {/* Hand Trucks loaded with crates in central transit aisle */}
+          <HandTruck
+            position={[-4, 0, 7]}
+            rotation={[0, 0.4, 0]}
+            commodity="orange"
+            qualityScore={94.0}
+          />
+          <HandTruck
+            position={[4, 0, 7]}
+            rotation={[0, -0.3, 0]}
+            commodity="banana"
+            qualityScore={92.5}
           />
 
           {/* Airflow Particles Animation */}
@@ -381,44 +485,70 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
         </Canvas>
       )}
 
-      {/* 4. Bottom-Left: Live Chamber Microclimate HUD (Overlay for both engines) */}
-      <div className="absolute bottom-3 left-4 z-20 hidden md:flex items-center gap-2 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 text-xs shadow-lg">
-        {/* Chamber A Pill */}
-        <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
-          <div className="flex items-center justify-between gap-3 text-[10px] text-slate-400 font-bold uppercase">
-            <span>Chamber A (Tropical)</span>
-            <span className="text-blue-400">Mango / Banana</span>
+      {/* 4. Bottom-Left: Live 5-Fruit Section Storage HUD */}
+      <div className="absolute bottom-3 left-4 z-20 hidden lg:flex items-center gap-2 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 text-xs shadow-lg overflow-x-auto max-w-[85%]">
+        {/* Banana Section Card */}
+        <div className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 min-w-[130px]">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase text-yellow-400">
+            <span>Banana Bay</span>
+            <span className="text-slate-400">Bay 1</span>
           </div>
-          <div className="flex items-center gap-3 mt-1 font-semibold text-slate-200">
+          <div className="flex items-center gap-2 mt-0.5 font-semibold text-slate-200 text-[11px]">
             <span>{chamberA.tempC.toFixed(1)}°C</span>
             <span>{chamberA.rhPct.toFixed(0)}% RH</span>
-            <span className="text-emerald-400 font-bold">{chamberA.quality.toFixed(1)}% Fresh</span>
+            <span className="text-emerald-400">{chamberA.quality.toFixed(0)}%</span>
           </div>
         </div>
 
-        {/* Chamber B Pill */}
-        <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
-          <div className="flex items-center justify-between gap-3 text-[10px] text-slate-400 font-bold uppercase">
-            <span>Chamber B (Solanaceous)</span>
-            <span className="text-emerald-400">Tomato / Apple</span>
+        {/* Orange Section Card */}
+        <div className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 min-w-[130px]">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase text-orange-400">
+            <span>Orange Bay</span>
+            <span className="text-slate-400">Bay 2</span>
           </div>
-          <div className="flex items-center gap-3 mt-1 font-semibold text-slate-200">
+          <div className="flex items-center gap-2 mt-0.5 font-semibold text-slate-200 text-[11px]">
             <span>{chamberB.tempC.toFixed(1)}°C</span>
             <span>{chamberB.rhPct.toFixed(0)}% RH</span>
-            <span className="text-emerald-400 font-bold">{chamberB.quality.toFixed(1)}% Fresh</span>
+            <span className="text-emerald-400">{chamberB.quality.toFixed(0)}%</span>
           </div>
         </div>
 
-        {/* Chamber C Pill */}
-        <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
-          <div className="flex items-center justify-between gap-3 text-[10px] text-slate-400 font-bold uppercase">
-            <span>Chamber C (Controlled Atm)</span>
-            <span className="text-indigo-400">Potato / Grape</span>
+        {/* Mango Section Card */}
+        <div className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 min-w-[130px]">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase text-amber-400">
+            <span>Mango Bay</span>
+            <span className="text-slate-400">Bay 3</span>
           </div>
-          <div className="flex items-center gap-3 mt-1 font-semibold text-slate-200">
+          <div className="flex items-center gap-2 mt-0.5 font-semibold text-slate-200 text-[11px]">
+            <span>{chamberA.tempC.toFixed(1)}°C</span>
+            <span>{chamberA.rhPct.toFixed(0)}% RH</span>
+            <span className="text-emerald-400">{chamberA.quality.toFixed(0)}%</span>
+          </div>
+        </div>
+
+        {/* Guava Section Card */}
+        <div className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 min-w-[130px]">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase text-lime-400">
+            <span>Guava Bay</span>
+            <span className="text-slate-400">Bay 4</span>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 font-semibold text-slate-200 text-[11px]">
+            <span>{chamberB.tempC.toFixed(1)}°C</span>
+            <span>{chamberB.rhPct.toFixed(0)}% RH</span>
+            <span className="text-emerald-400">{chamberB.quality.toFixed(0)}%</span>
+          </div>
+        </div>
+
+        {/* Grapes Section Card */}
+        <div className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 min-w-[130px]">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase text-purple-400">
+            <span>Grapes Bay</span>
+            <span className="text-slate-400">Bay 5</span>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 font-semibold text-slate-200 text-[11px]">
             <span>{chamberC.tempC.toFixed(1)}°C</span>
             <span>{chamberC.rhPct.toFixed(0)}% RH</span>
-            <span className="text-emerald-400 font-bold">{chamberC.quality.toFixed(1)}% Fresh</span>
+            <span className="text-emerald-400">{chamberC.quality.toFixed(0)}%</span>
           </div>
         </div>
       </div>
@@ -441,7 +571,7 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
 
           <div className="space-y-2">
             <div className="flex justify-between items-center text-slate-300">
-              <span>Commodity:</span>
+              <span>Section Commodity:</span>
               <strong className="text-white capitalize">{selectedZone.commodity}</strong>
             </div>
             <div className="flex justify-between items-center text-slate-300">
@@ -451,7 +581,7 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
               </strong>
             </div>
             <div className="flex justify-between items-center text-slate-300">
-              <span>Zone Temperature:</span>
+              <span>Rack Temperature:</span>
               <strong className="text-white">{selectedZone.temperatureC.toFixed(1)} °C</strong>
             </div>
             <div className="flex justify-between items-center text-slate-300">
@@ -459,9 +589,9 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
               <strong className="text-white">{selectedZone.humidityPct.toFixed(0)} % RH</strong>
             </div>
             <div className="flex justify-between items-center text-slate-300">
-              <span>Storage Life State:</span>
+              <span>Preservation Status:</span>
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                OPTIMAL PRESERVATION
+                OPTIMAL RACK CONDITION
               </span>
             </div>
           </div>

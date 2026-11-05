@@ -56,8 +56,21 @@ COMMODITY_GAS_PROPS = {
         "respiratory_quotient": 1.0,
         "km_o2_pct": 1.1,
         "ki_co2_pct": 12.0
+    },
+    "orange": {
+        "v_max_o2_ml_kg_h": 10.0,
+        "respiratory_quotient": 0.95,
+        "km_o2_pct": 1.2,
+        "ki_co2_pct": 10.0
+    },
+    "guava": {
+        "v_max_o2_ml_kg_h": 24.0,
+        "respiratory_quotient": 1.02,
+        "km_o2_pct": 1.5,
+        "ki_co2_pct": 12.0
     }
 }
+COMMODITY_GAS_PROPS["grapes"] = COMMODITY_GAS_PROPS["grape"]
 
 class GasModel:
     """
