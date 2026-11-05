@@ -304,9 +304,21 @@ export const App: React.FC = () => {
                   />
                 )}
 
-                {(currentSection === 'digital_twin' || currentSection === 'post_harvest') && (
+                {currentSection === 'digital_twin' && (
                   <DigitalTwinTab
                     simulationState={simulationState}
+                    onRefreshState={fetchState}
+                    onNavigateSection={(section) => {
+                      setCurrentSection(section);
+                      setAlertsOpen(false);
+                    }}
+                  />
+                )}
+
+                {currentSection === 'post_harvest' && (
+                  <PostHarvestTab
+                    simulationState={simulationState}
+                    simpleMode={simpleMode}
                     onRefreshState={fetchState}
                   />
                 )}

@@ -13,7 +13,8 @@ import {
   RefreshCw,
   Gauge,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  PlusCircle
 } from 'lucide-react';
 import { SimulationState } from '../types/simulation';
 import { WarehouseCanvas } from './three/WarehouseCanvas';
@@ -23,11 +24,13 @@ import { api } from '../services/api';
 interface DigitalTwinTabProps {
   simulationState: SimulationState | null;
   onRefreshState: () => void;
+  onNavigateSection?: (section: any) => void;
 }
 
 export const DigitalTwinTab: React.FC<DigitalTwinTabProps> = ({
   simulationState,
   onRefreshState,
+  onNavigateSection,
 }) => {
   const cold = simulationState?.cold_storage;
   const chambers = cold?.chambers || {};
@@ -80,6 +83,15 @@ export const DigitalTwinTab: React.FC<DigitalTwinTabProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          {onNavigateSection && (
+            <button
+              onClick={() => onNavigateSection('post_harvest')}
+              className="px-3.5 py-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs rounded-lg transition-colors shadow-xs flex items-center gap-1.5"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Register New Batch</span>
+            </button>
+          )}
           <div className="bg-[#F8FAFC] px-4 py-2 rounded-lg border border-[#E2E8F0] text-xs">
             <span className="text-[#64748B] block text-[10px] uppercase font-bold tracking-wider">Aggregated Quality</span>
             <span className="text-[#1E293B] font-extrabold text-base">

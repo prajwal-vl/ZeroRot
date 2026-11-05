@@ -74,6 +74,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Warehouse,
         },
         {
+          key: 'post_harvest',
+          label: 'Post-Harvest Storage',
+          description: 'Traditional vs Cold Storage',
+          icon: Layers,
+        },
+        {
           key: 'batch_management',
           label: 'Batch Management',
           description: 'Traceability & lifecycle',
@@ -164,7 +170,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 const Icon = item.icon;
                 const isActive =
                   currentSection === item.key ||
-                  (item.key === 'digital_twin' && currentSection === 'post_harvest') ||
                   (item.key === 'transportation' && currentSection === 'cold_chain') ||
                   (item.key === 'mandi_prices' && currentSection === 'market_reports');
 

@@ -304,3 +304,4 @@ export const Forklift: React.FC<ForkliftProps> = ({
     </group>
   );
 };
+

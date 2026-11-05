@@ -20,7 +20,9 @@ import {
   Clock,
   Sparkles,
   Search,
-  Filter
+  Filter,
+  Warehouse,
+  Snowflake
 } from 'lucide-react';
 import { api, BatchRecord } from '../services/api';
 import { DataBadge } from './DataBadge';
@@ -388,6 +390,70 @@ export const BatchManagementTab: React.FC<BatchManagementTabProps> = ({
             </div>
 
             <form onSubmit={handleCreateBatch} className="space-y-4 text-xs">
+              {/* Primary Storage Methodology Selection */}
+              <div>
+                <label className="block font-bold text-xs text-[#1E293B] mb-1.5 uppercase tracking-wider">
+                  Storage Methodology *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Option 1: Traditional Mud/Brick Store */}
+                  <div
+                    onClick={() => setNewStorage('TRADITIONAL')}
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                      newStorage === 'TRADITIONAL'
+                        ? 'border-[#2563EB] bg-blue-50/70 shadow-xs ring-2 ring-blue-500/20'
+                        : 'border-[#E2E8F0] hover:border-slate-300 bg-[#F8FAFC]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Warehouse className={`w-4 h-4 ${newStorage === 'TRADITIONAL' ? 'text-[#2563EB]' : 'text-slate-500'}`} />
+                        <strong className="text-xs text-[#1E293B]">Traditional Mud/Brick Store</strong>
+                      </div>
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        newStorage === 'TRADITIONAL' ? 'border-[#2563EB] bg-[#2563EB]' : 'border-slate-300'
+                      }`}>
+                        {newStorage === 'TRADITIONAL' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#64748B] leading-tight">
+                      Passive ambient airflow, no electrical cooling, ambient heatwave vulnerability.
+                    </p>
+                    <span className="inline-block mt-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800">
+                      Passive Store
+                    </span>
+                  </div>
+
+                  {/* Option 2: Intelligent Cold Storage Facility */}
+                  <div
+                    onClick={() => setNewStorage('ADVANCED')}
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                      newStorage === 'ADVANCED'
+                        ? 'border-[#2563EB] bg-blue-50/70 shadow-xs ring-2 ring-blue-500/20'
+                        : 'border-[#E2E8F0] hover:border-slate-300 bg-[#F8FAFC]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Snowflake className={`w-4 h-4 ${newStorage === 'ADVANCED' ? 'text-[#2563EB]' : 'text-slate-500'}`} />
+                        <strong className="text-xs text-[#1E293B]">Intelligent Cold Storage</strong>
+                      </div>
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        newStorage === 'ADVANCED' ? 'border-[#2563EB] bg-[#2563EB]' : 'border-slate-300'
+                      }`}>
+                        {newStorage === 'ADVANCED' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#64748B] leading-tight">
+                      Automated conveyor grading, multi-zone refrigerated chambers, 3x–5x extended shelf life.
+                    </p>
+                    <span className="inline-block mt-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800">
+                      Refrigerated Facility
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-semibold text-[#1E293B] mb-1">Farmer / Producer Name</label>
                 <input
@@ -401,7 +467,7 @@ export const BatchManagementTab: React.FC<BatchManagementTabProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-[#1E293B] mb-1">Commodity</label>
+                  <label className="block font-semibold text-[#1E293B] mb-1">Commodity / Produce Type</label>
                   <select
                     value={newCommodity}
                     onChange={(e) => setNewCommodity(e.target.value)}
@@ -409,11 +475,13 @@ export const BatchManagementTab: React.FC<BatchManagementTabProps> = ({
                   >
                     <option value="tomato">Tomato</option>
                     <option value="banana">Banana</option>
+                    <option value="orange">Orange</option>
                     <option value="mango">Mango</option>
+                    <option value="guava">Guava</option>
+                    <option value="grape">Grapes</option>
                     <option value="potato">Potato</option>
                     <option value="onion">Onion</option>
                     <option value="apple">Apple</option>
-                    <option value="grape">Grape</option>
                   </select>
                 </div>
                 <div>
@@ -421,7 +489,7 @@ export const BatchManagementTab: React.FC<BatchManagementTabProps> = ({
                   <input
                     type="number"
                     min="100"
-                    max="10000"
+                    max="50000"
                     required
                     value={newQuantity}
                     onChange={(e) => setNewQuantity(parseInt(e.target.value))}
@@ -452,34 +520,6 @@ export const BatchManagementTab: React.FC<BatchManagementTabProps> = ({
                     onChange={(e) => setNewQuality(parseInt(e.target.value))}
                     className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-[#2563EB]"
                   />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#1E293B] mb-1">Target Storage Method</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewStorage('ADVANCED')}
-                    className={`p-2.5 rounded-lg border text-left font-bold transition-all ${
-                      newStorage === 'ADVANCED'
-                        ? 'border-[#2563EB] bg-blue-50 text-[#2563EB]'
-                        : 'border-[#E2E8F0] bg-white text-[#64748B]'
-                    }`}
-                  >
-                    Advanced Cold Storage
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewStorage('TRADITIONAL')}
-                    className={`p-2.5 rounded-lg border text-left font-bold transition-all ${
-                      newStorage === 'TRADITIONAL'
-                        ? 'border-[#2563EB] bg-blue-50 text-[#2563EB]'
-                        : 'border-[#E2E8F0] bg-white text-[#64748B]'
-                    }`}
-                  >
-                    Traditional Farm Bay
-                  </button>
                 </div>
               </div>
 

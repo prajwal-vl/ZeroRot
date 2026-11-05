@@ -114,7 +114,7 @@ export const PostHarvestTab: React.FC<PostHarvestTabProps> = ({
       });
       setCreatedBatch(newBatch);
       await loadBatches();
-      setCurrentStep(2); // Move to storage method selection
+      setCurrentStep(3); // Directly launch the selected storage digital twin simulation
       onRefreshState();
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to persist produce batch.');
@@ -325,6 +325,92 @@ export const PostHarvestTab: React.FC<PostHarvestTabProps> = ({
               )}
 
               <form onSubmit={handleRegisterBatch} className="space-y-6 text-xs">
+                {/* 1. Storage Methodology Selection (Traditional vs Cold Storage) */}
+                <div className="space-y-3 pb-4 border-b border-[#E2E8F0]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#2563EB] block">
+                        Storage Methodology *
+                      </span>
+                      <h3 className="text-sm font-bold text-[#1E293B]">
+                        Select Storage System: Traditional Store vs Intelligent Cold Storage
+                      </h3>
+                      <p className="text-xs text-[#64748B]">
+                        Choose whether this produce will be stored in an on-farm Traditional Mud/Brick Store or an Intelligent Cold Storage Facility.
+                      </p>
+                    </div>
+                    <span className="hidden sm:inline-block px-2.5 py-1 rounded bg-[#EFF6FF] text-[#2563EB] text-[11px] font-bold border border-[#DBEAFE]">
+                      Selected: {storageType === 'TRADITIONAL' ? 'Traditional Mud/Brick' : 'Intelligent Cold Storage'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Option 1: Traditional Mud/Brick Store */}
+                    <div
+                      onClick={() => setStorageType('TRADITIONAL')}
+                      className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${
+                        storageType === 'TRADITIONAL'
+                          ? 'border-[#2563EB] bg-blue-50/70 shadow-sm ring-2 ring-blue-500/20'
+                          : 'border-[#E2E8F0] hover:border-slate-300 bg-[#F8FAFC]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Warehouse className={`w-5 h-5 ${storageType === 'TRADITIONAL' ? 'text-[#2563EB]' : 'text-slate-500'}`} />
+                          <h4 className="font-bold text-sm text-[#1E293B]">Traditional Mud/Brick Store</h4>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          storageType === 'TRADITIONAL'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {storageType === 'TRADITIONAL' ? 'Selected' : 'Select'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#64748B] leading-relaxed">
+                        Passive on-farm ambient storage with mud/brick walls, natural ventilation louvers, and thatch roof. No electrical refrigeration.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold">
+                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">Zero Power Cost</span>
+                        <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">Heatwave Spoilage Risk</span>
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700">Natural Ventilation</span>
+                      </div>
+                    </div>
+
+                    {/* Option 2: Intelligent Cold Storage Facility */}
+                    <div
+                      onClick={() => setStorageType('ADVANCED')}
+                      className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${
+                        storageType === 'ADVANCED'
+                          ? 'border-[#2563EB] bg-blue-50/70 shadow-sm ring-2 ring-blue-500/20'
+                          : 'border-[#E2E8F0] hover:border-slate-300 bg-[#F8FAFC]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Snowflake className={`w-5 h-5 ${storageType === 'ADVANCED' ? 'text-[#2563EB]' : 'text-slate-500'}`} />
+                          <h4 className="font-bold text-sm text-[#1E293B]">Intelligent Cold Storage Facility</h4>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          storageType === 'ADVANCED'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {storageType === 'ADVANCED' ? 'Selected' : 'Select'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#64748B] leading-relaxed">
+                        Automated 2D optical conveyor camera defect detection, sorting into destination bins, followed by controlled atmosphere cold storage with spatial heatmaps.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold">
+                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">3x–5x Shelf Life</span>
+                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">Optical CV Sorting</span>
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200">Multi-Chamber Thermostat</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   <div>
                     <label className="block font-semibold text-[#1E293B] mb-1.5">Farmer Name</label>
@@ -345,10 +431,14 @@ export const PostHarvestTab: React.FC<PostHarvestTabProps> = ({
                       className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3.5 py-2 text-xs font-semibold text-[#1E293B] focus:ring-2 focus:ring-[#2563EB] outline-none capitalize"
                     >
                       <option value="tomato">Tomato (Solanum lycopersicum)</option>
-                      <option value="mango">Mango (Mangifera indica)</option>
                       <option value="banana">Banana (Musa acuminata)</option>
+                      <option value="orange">Orange (Citrus × sinensis)</option>
+                      <option value="mango">Mango (Mangifera indica)</option>
+                      <option value="guava">Guava (Psidium guajava)</option>
+                      <option value="grape">Grapes (Vitis vinifera)</option>
                       <option value="potato">Potato (Solanum tuberosum)</option>
                       <option value="onion">Onion (Allium cepa)</option>
+                      <option value="apple">Apple (Malus domestica)</option>
                     </select>
                   </div>
 
@@ -408,7 +498,11 @@ export const PostHarvestTab: React.FC<PostHarvestTabProps> = ({
                     disabled={isSubmitting}
                     className="px-6 py-2.5 bg-[#2563EB] hover:bg-[#1E40AF] text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
                   >
-                    <span>{isSubmitting ? 'Persisting to Ledger...' : 'Save & Proceed to Storage Selection'}</span>
+                    <span>
+                      {isSubmitting
+                        ? 'Persisting to Ledger...'
+                        : `Register Batch & Launch ${storageType === 'TRADITIONAL' ? 'Traditional Store' : 'Cold Storage'} Simulation`}
+                    </span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
