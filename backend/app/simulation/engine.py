@@ -6,6 +6,7 @@ and broadcasts unified state to frontend dashboards and mobile PWAs.
 """
 import asyncio
 import time
+import json
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from .traditional_storage import TraditionalStorageTwin
@@ -20,6 +21,23 @@ except ImportError:
         from app.services.telegram_service import TelegramService
     except ImportError:
         TelegramService = None
+
+try:
+    from ..database import SessionLocal
+    from ..models.models import SimulationRecord, SimulationStateRecord, ProduceBatch, VirtualSensorReading
+    from .deterioration_model import DeteriorationModel
+except ImportError:
+    try:
+        from app.database import SessionLocal
+        from app.models.models import SimulationRecord, SimulationStateRecord, ProduceBatch, VirtualSensorReading
+        from app.simulation.deterioration_model import DeteriorationModel
+    except ImportError:
+        SessionLocal = None
+        SimulationRecord = None
+        SimulationStateRecord = None
+        ProduceBatch = None
+        VirtualSensorReading = None
+        DeteriorationModel = None
 
 class SimulationEngine:
     """
@@ -50,6 +68,170 @@ class SimulationEngine:
         self.alerts: List[Dict[str, Any]] = []
         self.alert_counter = 1
         self.active_batch_code: Optional[str] = None
+        self.tick_counter = 0
+
+    def ensure_simulation_record(self, db) -> Optional[Any]:
+        """Ensures a persistent simulation run record exists and matches engine parameters."""
+        if not db or not SimulationRecord:
+            return None
+        try:
+            rec = db.query(SimulationRecord).filter(SimulationRecord.sim_uuid == self.sim_id).first()
+            if not rec:
+                rec = SimulationRecord(
+                    sim_uuid=self.sim_id,
+                    scenario_key=self.scenario_manager.active_scenario_key,
+                    is_running=self.is_running,
+                    speed_factor=self.sim_speed,
+                    started_at=datetime.now(timezone.utc)
+                )
+                db.add(rec)
+                db.commit()
+                db.refresh(rec)
+            else:
+                rec.scenario_key = self.scenario_manager.active_scenario_key
+                rec.is_running = self.is_running
+                rec.speed_factor = self.sim_speed
+                if not self.is_running and not rec.ended_at:
+                    rec.ended_at = datetime.now(timezone.utc)
+                elif self.is_running:
+                    rec.ended_at = None
+                db.commit()
+            return rec
+        except Exception:
+            db.rollback()
+            return None
+
+    def persist_state_snapshot(self, db, sim_rec, state_payload_dict: Dict[str, Any]):
+        """Persists authoritative state snapshot to database for historical auditability."""
+        if not db or not SimulationStateRecord or not sim_rec:
+            return
+        try:
+            snapshot = SimulationStateRecord(
+                simulation_id=sim_rec.id,
+                sim_time_seconds=self.total_simulated_seconds,
+                ambient_temp_c=self.ambient_temp_c,
+                ambient_rh_pct=self.ambient_rh_pct,
+                state_payload=json.dumps(state_payload_dict),
+                recorded_at=datetime.now(timezone.utc)
+            )
+            db.add(snapshot)
+            db.commit()
+
+            # Keep database lean: retain latest 500 state records
+            excess_records = db.query(SimulationStateRecord).filter(
+                SimulationStateRecord.simulation_id == sim_rec.id
+            ).order_by(SimulationStateRecord.id.desc()).offset(500).all()
+            if excess_records:
+                for old in excess_records:
+                    db.delete(old)
+                db.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            db.rollback()
+
+    def step_active_batches(self, db, dt_seconds: float):
+        """Simulates deterioration kinetics independently for all active batches across facilities."""
+        if not db or not ProduceBatch or not DeteriorationModel:
+            return
+        try:
+            active_batches = db.query(ProduceBatch).filter(
+                ProduceBatch.is_deleted == False,
+                ProduceBatch.simulation_status == "ACTIVE"
+            ).all()
+
+            if not active_batches:
+                return
+
+            now_utc = datetime.now(timezone.utc)
+
+            for b in active_batches:
+                st = (b.storage_type or "TRADITIONAL").upper()
+                if st == "TRADITIONAL":
+                    temp_c = self.traditional_store.internal_temp_c
+                    rh_pct = self.traditional_store.internal_rh_pct
+                    o2_pct = self.traditional_store.internal_o2_pct
+                    co2_ppm = self.traditional_store.internal_co2_ppm
+                elif st == "COLD_STORAGE":
+                    comm = (b.commodity_name or "tomato").lower()
+                    if comm in ["mango", "banana"]:
+                        ch = self.cold_warehouse.chambers.get("chamber_tropical")
+                    elif comm in ["onion"]:
+                        ch = self.cold_warehouse.chambers.get("chamber_cold_dry")
+                    else:
+                        ch = self.cold_warehouse.chambers.get("chamber_veggie")
+                    if not ch:
+                        ch = list(self.cold_warehouse.chambers.values())[0]
+                    temp_c = ch.internal_temp_c
+                    rh_pct = ch.internal_rh_pct
+                    o2_pct = ch.internal_o2_pct
+                    co2_ppm = ch.internal_co2_ppm
+                else: # IN_TRANSIT
+                    temp_c = self.truck.mean_cargo_temp_c
+                    rh_pct = self.truck.cargo_rh_pct
+                    o2_pct = self.truck.o2_pct
+                    co2_ppm = self.truck.co2_ppm
+
+                det = DeteriorationModel.step_produce_quality(
+                    current_quality_score=b.current_quality_score,
+                    commodity_name=b.commodity_name,
+                    temp_c=temp_c,
+                    rh_pct=rh_pct,
+                    o2_pct=o2_pct,
+                    co2_ppm=co2_ppm,
+                    dt_seconds=dt_seconds
+                )
+
+                b.current_quality_score = round(det["quality_score"], 2)
+                b.remaining_shelf_life_days = round(det["remaining_shelf_life_days"], 2)
+                b.last_executed_at = now_utc
+
+                # Record authoritative virtual sensor telemetry
+                if VirtualSensorReading:
+                    db.add(VirtualSensorReading(
+                        sensor_id=f"sens_temp_{b.batch_code}",
+                        sensor_type="TEMPERATURE",
+                        asset_id=b.batch_code,
+                        value=round(temp_c, 2),
+                        unit="°C",
+                        data_label="SIMULATED",
+                        recorded_at=now_utc
+                    ))
+                    db.add(VirtualSensorReading(
+                        sensor_id=f"sens_rh_{b.batch_code}",
+                        sensor_type="HUMIDITY",
+                        asset_id=b.batch_code,
+                        value=round(rh_pct, 1),
+                        unit="%",
+                        data_label="SIMULATED",
+                        recorded_at=now_utc
+                    ))
+                    db.add(VirtualSensorReading(
+                        sensor_id=f"sens_quality_{b.batch_code}",
+                        sensor_type="QUALITY",
+                        asset_id=b.batch_code,
+                        value=round(b.current_quality_score, 2),
+                        unit="%",
+                        data_label="SIMULATED",
+                        recorded_at=now_utc
+                    ))
+
+                # Spoilage threshold alert
+                if b.current_quality_score <= 35.0 or b.remaining_shelf_life_days <= 1.0:
+                    self._trigger_alert(
+                        module=f"BATCH_{b.batch_code}",
+                        severity="CRITICAL",
+                        title=f"Batch {b.batch_code} Spoilage Critical",
+                        message=f"{b.commodity_name.capitalize()} quality decayed to {b.current_quality_score}% with {b.remaining_shelf_life_days} days shelf life remaining in {st}.",
+                        recommended_action="Expedite immediate auction dispatch to APMC mandi.",
+                        timestamp=now_utc.isoformat()
+                    )
+
+            db.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            db.rollback()
 
     def load_batch(self, batch_code: str, commodity_name: str, quantity_kg: float, storage_type: str = "TRADITIONAL"):
         """Loads a specific batch into the digital twin for active simulation."""
@@ -99,10 +281,23 @@ class SimulationEngine:
             
         if scenario_key is not None:
             sc = self.scenario_manager.apply_scenario(scenario_key)
-            # Apply scenario to twins
+            # 1. Apply scenario to truck
             self.truck.reefer_fault = sc.get("reefer_fault", False)
             self.truck.rear_door_open = sc.get("door_open", False)
             self.truck.truck_speed_kmh = sc.get("truck_speed_kmh", 55.0)
+            
+            # 2. Apply scenario to intelligent cold warehouse chambers
+            cooling_factor = sc.get("cooling_power_factor", 1.0)
+            door_open = sc.get("door_open", False)
+            reefer_fault = sc.get("reefer_fault", False)
+            for ch in self.cold_warehouse.chambers.values():
+                ch.door_open = door_open
+                ch.compressor_fault = reefer_fault or (cooling_factor == 0.0)
+                ch.cooling_capacity_watts = 14000.0 * cooling_factor
+
+            # 3. Apply scenario to traditional storage
+            if door_open:
+                self.traditional_store.door_open = True
             
         if ambient_temp_override is not None:
             self.ambient_temp_c = ambient_temp_override
@@ -125,6 +320,15 @@ class SimulationEngine:
             for cid, temp in chamber_target_temp.items():
                 if cid in self.cold_warehouse.chambers:
                     self.cold_warehouse.chambers[cid].target_temp_c = temp
+
+        # Persist updated simulation parameters into database
+        if SessionLocal:
+            try:
+                db = SessionLocal()
+                self.ensure_simulation_record(db)
+                db.close()
+            except Exception:
+                pass
 
         return self.get_state()
 
@@ -178,7 +382,28 @@ class SimulationEngine:
         # 4. Evaluate Thresholds & Generate Real-Time Alerts
         self._evaluate_alerts(trad_res, cold_res, truck_res)
         
-        # 5. Telegram Periodic Telemetry Dispatch
+        # 5. Independent Multi-Batch Simulation & DB Persistence
+        self.tick_counter = getattr(self, "tick_counter", 0) + 1
+        if SessionLocal:
+            db = None
+            try:
+                db = SessionLocal()
+                # Ensure active simulation run record exists
+                sim_rec = self.ensure_simulation_record(db)
+
+                # Step all active batches independently
+                self.step_active_batches(db, dt)
+
+                # Persist state snapshot every 3 ticks
+                if self.tick_counter % 3 == 0:
+                    self.persist_state_snapshot(db, sim_rec, self.get_state())
+            except Exception:
+                pass
+            finally:
+                if db:
+                    db.close()
+
+        # 6. Telegram Periodic Telemetry Dispatch
         if TelegramService and TelegramService.is_configured():
             try:
                 TelegramService.check_and_send_periodic_update(self.get_state())

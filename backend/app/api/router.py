@@ -13,8 +13,10 @@ import io
 from ..database import get_db
 from ..models.models import (
     Commodity, ProduceBatch, FarmerProfile, InspectionRecord,
-    StorageFacility, AlertRecord, QRAccessSession, User, MandiPriceRecord, PriceForecastRecord
+    StorageFacility, AlertRecord, QRAccessSession, User, MandiPriceRecord, PriceForecastRecord,
+    VirtualSensorReading
 )
+from ..simulation.deterioration_model import DeteriorationModel
 from ..schemas.schemas import (
     ControlRequest, CreateBatchRequest, StorageAllocationRequest,
     InspectionScanRequest, ProfitOptimizeRequest, QRGenerateRequest, UpdateQRConfigRequest,
@@ -391,23 +393,128 @@ def get_batch_simulation_history(
     if not batch or batch.is_deleted:
         raise HTTPException(status_code=404, detail="Batch not found or archived.")
 
-    history = []
-    days_in_storage = max(1, (datetime.now(timezone.utc) - batch.harvest_date.replace(tzinfo=timezone.utc)).days)
-    curr_q = batch.initial_quality_score
-    rate = 1.8 if batch.storage_type == "TRADITIONAL" else 0.4
+    # 1. Query verified virtual sensor telemetry records for this batch
+    sensor_rows = db.query(VirtualSensorReading).filter(
+        VirtualSensorReading.asset_id == batch.batch_code
+    ).order_by(VirtualSensorReading.recorded_at.asc()).all()
 
-    for d in range(min(days_in_storage + 1, 15)):
-        step_date = batch.harvest_date + timedelta(days=d)
-        q = max(20.0, batch.initial_quality_score - (rate * d))
-        shelf_life = max(0.5, (q / 100.0) * (18.0 if batch.storage_type != "TRADITIONAL" else 12.0))
-        history.append({
-            "day": d,
-            "date": step_date.strftime("%Y-%m-%d"),
-            "quality_score": round(q, 1),
-            "remaining_shelf_life_days": round(shelf_life, 1),
-            "temp_c": 24.5 if batch.storage_type == "TRADITIONAL" else 11.0,
-            "rh_pct": 72.0 if batch.storage_type == "TRADITIONAL" else 88.0
-        })
+    history = []
+    
+    # If telemetry records exist, group them chronologically
+    if sensor_rows:
+        readings_by_time: Dict[str, Dict[str, Any]] = {}
+        for r in sensor_rows:
+            # Group by 1-minute window or hour
+            t_key = r.recorded_at.strftime("%Y-%m-%d %H:%M")
+            if t_key not in readings_by_time:
+                readings_by_time[t_key] = {
+                    "timestamp": r.recorded_at.isoformat(),
+                    "date": r.recorded_at.strftime("%Y-%m-%d"),
+                    "temp_c": None,
+                    "rh_pct": None,
+                    "quality_score": None,
+                    "data_label": r.data_label or "SIMULATED"
+                }
+            if r.sensor_type == "TEMPERATURE":
+                readings_by_time[t_key]["temp_c"] = r.value
+            elif r.sensor_type == "HUMIDITY":
+                readings_by_time[t_key]["rh_pct"] = r.value
+            elif r.sensor_type == "QUALITY":
+                readings_by_time[t_key]["quality_score"] = r.value
+
+        day_idx = 0
+        for t_key, item in sorted(readings_by_time.items()):
+            # Fill missing parameters if any
+            temp = item["temp_c"] if item["temp_c"] is not None else (25.5 if batch.storage_type == "TRADITIONAL" else 11.0)
+            rh = item["rh_pct"] if item["rh_pct"] is not None else (72.0 if batch.storage_type == "TRADITIONAL" else 88.0)
+            q = item["quality_score"] if item["quality_score"] is not None else batch.current_quality_score
+            
+            # Shelf life based on actual quality
+            shelf_life = max(0.2, (q / 100.0) * (21.0 if batch.storage_type != "TRADITIONAL" else 12.0))
+            
+            history.append({
+                "day": day_idx,
+                "date": item["date"],
+                "timestamp": item["timestamp"],
+                "quality_score": round(q, 1),
+                "remaining_shelf_life_days": round(shelf_life, 1),
+                "temp_c": round(temp, 1),
+                "rh_pct": round(rh, 1),
+                "data_label": item["data_label"]
+            })
+            day_idx += 1
+
+    # 2. If no persisted sensor records yet (fresh batch), compute authentic kinetic progression from harvest_date
+    if len(history) < 2:
+        history.clear()
+        harvest_dt = batch.harvest_date.replace(tzinfo=timezone.utc) if batch.harvest_date.tzinfo is None else batch.harvest_date
+        now_dt = datetime.now(timezone.utc)
+        days_in_storage = max(1, (now_dt - harvest_dt).days)
+        sim_days = min(days_in_storage + 1, 15)
+
+        # Baseline conditions according to storage facility physics
+        storage_temp = 25.5 if batch.storage_type == "TRADITIONAL" else 11.0
+        storage_rh = 70.0 if batch.storage_type == "TRADITIONAL" else 90.0
+        o2_pct = 20.5 if batch.storage_type == "TRADITIONAL" else 20.8
+        co2_ppm = 550.0
+
+        q_track = batch.initial_quality_score
+        for d in range(sim_days):
+            step_date = harvest_dt + timedelta(days=d)
+            if d > 0:
+                det = DeteriorationModel.step_produce_quality(
+                    current_quality_score=q_track,
+                    commodity_name=batch.commodity_name,
+                    temp_c=storage_temp,
+                    rh_pct=storage_rh,
+                    o2_pct=o2_pct,
+                    co2_ppm=co2_ppm,
+                    dt_seconds=86400.0
+                )
+                q_track = det["quality_score"]
+                rsl = det["remaining_shelf_life_days"]
+            else:
+                rsl = (batch.initial_quality_score / 100.0) * (21.0 if batch.storage_type != "TRADITIONAL" else 14.0)
+
+            # Persist genuine telemetry rows so subsequent calls read directly from DB
+            db.add(VirtualSensorReading(
+                sensor_id=f"sens_temp_{batch.batch_code}",
+                sensor_type="TEMPERATURE",
+                asset_id=batch.batch_code,
+                value=round(storage_temp, 1),
+                unit="°C",
+                data_label="SIMULATED",
+                recorded_at=step_date
+            ))
+            db.add(VirtualSensorReading(
+                sensor_id=f"sens_rh_{batch.batch_code}",
+                sensor_type="HUMIDITY",
+                asset_id=batch.batch_code,
+                value=round(storage_rh, 1),
+                unit="%",
+                data_label="SIMULATED",
+                recorded_at=step_date
+            ))
+            db.add(VirtualSensorReading(
+                sensor_id=f"sens_quality_{batch.batch_code}",
+                sensor_type="QUALITY",
+                asset_id=batch.batch_code,
+                value=round(q_track, 1),
+                unit="%",
+                data_label="SIMULATED",
+                recorded_at=step_date
+            ))
+
+            history.append({
+                "day": d,
+                "date": step_date.strftime("%Y-%m-%d"),
+                "quality_score": round(q_track, 1),
+                "remaining_shelf_life_days": round(rsl, 1),
+                "temp_c": round(storage_temp, 1),
+                "rh_pct": round(storage_rh, 1),
+                "data_label": "SIMULATED"
+            })
+        db.commit()
 
     return {
         "batch_code": batch.batch_code,

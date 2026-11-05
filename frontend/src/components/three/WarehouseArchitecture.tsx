@@ -6,6 +6,50 @@ interface WarehouseArchitectureProps {
   chamberA: { tempC: number; rhPct: number; o2Pct: number };
   chamberB: { tempC: number; rhPct: number; o2Pct: number };
   chamberC: { tempC: number; rhPct: number; o2Pct: number };
+  doorOpen?: boolean;
+  coolingActive?: boolean;
+}
+
+// Animated Industrial Roll-Up Dock Shutter Door
+function AnimatedRollUpDoor({ doorOpen }: { doorOpen: boolean }) {
+  const doorGroupRef = useRef<THREE.Group>(null!);
+
+  useFrame((_, delta) => {
+    if (doorGroupRef.current) {
+      // Slides up from y=3.7 (closed) to y=9.2 (open)
+      const targetY = doorOpen ? 9.2 : 3.7;
+      doorGroupRef.current.position.y = THREE.MathUtils.damp(
+        doorGroupRef.current.position.y,
+        targetY,
+        4.5,
+        delta
+      );
+    }
+  });
+
+  return (
+    <group ref={doorGroupRef} position={[0, 3.7, 17.4]}>
+      {/* Shutter Door Ribbed Panels */}
+      <mesh>
+        <boxGeometry args={[13.2, 7.4, 0.12]} />
+        <meshStandardMaterial color="#1E40AF" roughness={0.35} metalness={0.65} />
+      </mesh>
+      {/* Horizontal Shutter Seams */}
+      {[-3, -2, -1, 0, 1, 2, 3].map((y, idx) => (
+        <mesh key={`seam-${idx}`} position={[0, y, 0.07]}>
+          <boxGeometry args={[13.0, 0.04, 0.02]} />
+          <meshStandardMaterial color="#172554" metalness={0.8} />
+        </mesh>
+      ))}
+      {/* Vertical Track Guides */}
+      {[-6.65, 6.65].map((x, idx) => (
+        <mesh key={`track-${idx}`} position={[x, 0, 0]}>
+          <boxGeometry args={[0.15, 7.6, 0.18]} />
+          <meshStandardMaterial color="#334155" metalness={0.9} roughness={0.2} />
+        </mesh>
+      ))}
+    </group>
+  );
 }
 
 // Single Evaporator Blower Unit with rotating fan blades
@@ -13,17 +57,21 @@ function EvaporatorUnit({
   position,
   chamberName,
   tempC,
+  coolingActive = true,
 }: {
   position: [number, number, number];
   chamberName: string;
   tempC: number;
+  coolingActive?: boolean;
 }) {
   const fanLeftRef = useRef<THREE.Group>(null!);
   const fanRightRef = useRef<THREE.Group>(null!);
 
   useFrame((_, delta) => {
-    if (fanLeftRef.current) fanLeftRef.current.rotation.z += delta * 18;
-    if (fanRightRef.current) fanRightRef.current.rotation.z += delta * 18;
+    if (coolingActive) {
+      if (fanLeftRef.current) fanLeftRef.current.rotation.z += delta * 18;
+      if (fanRightRef.current) fanRightRef.current.rotation.z += delta * 18;
+    }
   });
 
   return (
@@ -103,10 +151,10 @@ function EvaporatorUnit({
         <planeGeometry args={[1.6, 0.28]} />
         <meshBasicMaterial color="#0F172A" />
       </mesh>
-      {/* Status Power Light */}
+      {/* Status Power Light: Green = Cooling On, Red = Compressor Fault / Off */}
       <mesh position={[-0.65, 0.75, 0.72]}>
         <circleGeometry args={[0.045, 12]} />
-        <meshBasicMaterial color="#22C55E" />
+        <meshBasicMaterial color={coolingActive ? '#22C55E' : '#EF4444'} />
       </mesh>
     </group>
   );
@@ -116,6 +164,8 @@ export const WarehouseArchitecture: React.FC<WarehouseArchitectureProps> = ({
   chamberA,
   chamberB,
   chamberC,
+  doorOpen = false,
+  coolingActive = true,
 }) => {
   return (
     <group>
@@ -200,28 +250,8 @@ export const WarehouseArchitecture: React.FC<WarehouseArchitectureProps> = ({
         <meshStandardMaterial color="#CBD5E1" roughness={0.65} />
       </mesh>
 
-      {/* 3. Sectional Industrial Roll-Up Dock Shutter Door */}
-      <group position={[0, 3.7, 17.4]}>
-        {/* Shutter Door Ribbed Panels */}
-        <mesh>
-          <boxGeometry args={[13.2, 7.4, 0.12]} />
-          <meshStandardMaterial color="#1E40AF" roughness={0.35} metalness={0.65} />
-        </mesh>
-        {/* Horizontal Shutter Seams */}
-        {[-3, -2, -1, 0, 1, 2, 3].map((y, idx) => (
-          <mesh key={`seam-${idx}`} position={[0, y, 0.07]}>
-            <boxGeometry args={[13.0, 0.04, 0.02]} />
-            <meshStandardMaterial color="#172554" metalness={0.8} />
-          </mesh>
-        ))}
-        {/* Vertical Track Guides */}
-        {[-6.65, 6.65].map((x, idx) => (
-          <mesh key={`track-${idx}`} position={[x, 0, 0]}>
-            <boxGeometry args={[0.15, 7.6, 0.18]} />
-            <meshStandardMaterial color="#334155" metalness={0.9} roughness={0.2} />
-          </mesh>
-        ))}
-      </group>
+      {/* 3. Sectional Industrial Roll-Up Dock Shutter Door (Animated to Backend Physics) */}
+      <AnimatedRollUpDoor doorOpen={doorOpen} />
 
       {/* 4. Dock Leveler Plate & Heavy Rubber Bumpers */}
       <group position={[0, 0.08, 17.0]}>
@@ -390,16 +420,19 @@ export const WarehouseArchitecture: React.FC<WarehouseArchitectureProps> = ({
         position={[-14, 8.0, -16.8]}
         chamberName="Chamber A (Tropical Zone)"
         tempC={chamberA.tempC}
+        coolingActive={coolingActive}
       />
       <EvaporatorUnit
         position={[0, 8.0, -16.8]}
         chamberName="Chamber B (Citrus/Subtropical)"
         tempC={chamberB.tempC}
+        coolingActive={coolingActive}
       />
       <EvaporatorUnit
         position={[14, 8.0, -16.8]}
         chamberName="Chamber C (Controlled Atmosphere)"
         tempC={chamberC.tempC}
+        coolingActive={coolingActive}
       />
 
       {/* 12. Wall Digital Chamber Signage Banners */}

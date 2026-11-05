@@ -19,9 +19,17 @@ import {
   CheckCircle2,
   AlertTriangle,
   Info,
-  Maximize2
+  Maximize2,
+  Play,
+  Pause,
+  FastForward,
+  Power,
+  Snowflake,
+  DoorOpen,
+  Gauge
 } from 'lucide-react';
 import { SimulationState } from '../../types/simulation';
+import { api } from '../../services/api';
 
 interface WarehouseCanvasProps {
   simulationState: SimulationState | null;
@@ -45,6 +53,7 @@ function CameraController({
 
 export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
   simulationState,
+  onRefreshState,
 }) => {
   // Camera perspective state
   const [cameraView, setCameraView] = useState<
@@ -56,28 +65,102 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
   const [showAirflow, setShowAirflow] = useState<boolean>(true);
   const [showLogistics, setShowLogistics] = useState<boolean>(true);
   const [selectedZone, setSelectedZone] = useState<any | null>(null);
+  const [isUpdatingPhysics, setIsUpdatingPhysics] = useState<boolean>(false);
 
   // Extract microclimate parameters from simulation state
   const cold = simulationState?.cold_storage;
   const chambers = cold?.chambers || {};
 
+  const isDoorOpen = Boolean(
+    simulationState?.active_scenario?.door_open ||
+    chambers.chamber_a?.door_open ||
+    chambers.chamber_b?.door_open ||
+    chambers.chamber_c?.door_open ||
+    chambers.chamber_tropical?.door_open ||
+    chambers.chamber_veggie?.door_open
+  );
+
+  const isCoolingActive = Boolean(
+    (simulationState?.is_running ?? true) &&
+    !simulationState?.active_scenario?.reefer_fault &&
+    simulationState?.active_scenario?.cooling_power_factor !== 0.0
+  );
+
+  const currentSimSpeed = simulationState?.sim_speed ?? 1.0;
+  const isRunning = simulationState?.is_running ?? true;
+
+  const handleTogglePlay = async () => {
+    setIsUpdatingPhysics(true);
+    try {
+      await api.updateControls({ is_running: !isRunning });
+      onRefreshState?.();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsUpdatingPhysics(false);
+    }
+  };
+
+  const handleChangeSpeed = async (speed: number) => {
+    setIsUpdatingPhysics(true);
+    try {
+      await api.updateControls({ sim_speed: speed });
+      onRefreshState?.();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsUpdatingPhysics(false);
+    }
+  };
+
+  const handleToggleDoor = async () => {
+    setIsUpdatingPhysics(true);
+    try {
+      await api.updateControls({
+        scenario_key: isDoorOpen ? 'NORMAL' : 'DOOR_AJAR',
+        truck_door_open: !isDoorOpen,
+        traditional_door_open: !isDoorOpen,
+      });
+      onRefreshState?.();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsUpdatingPhysics(false);
+    }
+  };
+
+  const handleToggleReefer = async () => {
+    setIsUpdatingPhysics(true);
+    try {
+      await api.updateControls({
+        scenario_key: isCoolingActive ? 'REEFER_FAILURE' : 'NORMAL',
+        truck_reefer_on: !isCoolingActive,
+      });
+      onRefreshState?.();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsUpdatingPhysics(false);
+    }
+  };
+
   const chamberA = {
-    tempC: chambers.chamber_a?.internal_temp_c ?? chambers.chamber_a?.temp_c ?? 13.0,
-    rhPct: chambers.chamber_a?.internal_rh_pct ?? chambers.chamber_a?.rh_pct ?? 90.0,
-    o2Pct: chambers.chamber_a?.internal_o2_pct ?? chambers.chamber_a?.o2_pct ?? 20.8,
-    quality: chambers.chamber_a?.quality_score ?? 91.5,
+    tempC: chambers.chamber_a?.internal_temp_c ?? chambers.chamber_a?.temp_c ?? chambers.chamber_tropical?.internal_temp_c ?? 13.0,
+    rhPct: chambers.chamber_a?.internal_rh_pct ?? chambers.chamber_a?.rh_pct ?? chambers.chamber_tropical?.internal_rh_pct ?? 90.0,
+    o2Pct: chambers.chamber_a?.internal_o2_pct ?? chambers.chamber_a?.o2_pct ?? chambers.chamber_tropical?.internal_o2_pct ?? 20.8,
+    quality: chambers.chamber_a?.quality_score ?? chambers.chamber_tropical?.quality_score ?? 91.5,
   };
   const chamberB = {
-    tempC: chambers.chamber_b?.internal_temp_c ?? chambers.chamber_b?.temp_c ?? 8.5,
-    rhPct: chambers.chamber_b?.internal_rh_pct ?? chambers.chamber_b?.rh_pct ?? 88.0,
-    o2Pct: chambers.chamber_b?.internal_o2_pct ?? chambers.chamber_b?.o2_pct ?? 20.9,
-    quality: chambers.chamber_b?.quality_score ?? 93.0,
+    tempC: chambers.chamber_b?.internal_temp_c ?? chambers.chamber_b?.temp_c ?? chambers.chamber_veggie?.internal_temp_c ?? 8.5,
+    rhPct: chambers.chamber_b?.internal_rh_pct ?? chambers.chamber_b?.rh_pct ?? chambers.chamber_veggie?.internal_rh_pct ?? 88.0,
+    o2Pct: chambers.chamber_b?.internal_o2_pct ?? chambers.chamber_b?.o2_pct ?? chambers.chamber_veggie?.internal_o2_pct ?? 20.9,
+    quality: chambers.chamber_b?.quality_score ?? chambers.chamber_veggie?.quality_score ?? 93.0,
   };
   const chamberC = {
-    tempC: chambers.chamber_c?.internal_temp_c ?? chambers.chamber_c?.temp_c ?? 1.5,
-    rhPct: chambers.chamber_c?.internal_rh_pct ?? chambers.chamber_c?.rh_pct ?? 92.0,
-    o2Pct: chambers.chamber_c?.internal_o2_pct ?? chambers.chamber_c?.o2_pct ?? 14.5,
-    quality: chambers.chamber_c?.quality_score ?? 95.0,
+    tempC: chambers.chamber_c?.internal_temp_c ?? chambers.chamber_c?.temp_c ?? chambers.chamber_cold_dry?.internal_temp_c ?? 1.5,
+    rhPct: chambers.chamber_c?.internal_rh_pct ?? chambers.chamber_c?.rh_pct ?? chambers.chamber_cold_dry?.internal_rh_pct ?? 92.0,
+    o2Pct: chambers.chamber_c?.internal_o2_pct ?? chambers.chamber_c?.o2_pct ?? chambers.chamber_cold_dry?.internal_o2_pct ?? 14.5,
+    quality: chambers.chamber_c?.quality_score ?? chambers.chamber_cold_dry?.quality_score ?? 95.0,
   };
 
   // Camera targets for each fruit bay and key perspective
@@ -287,6 +370,8 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
           chamberA={chamberA}
           chamberB={chamberB}
           chamberC={chamberC}
+          doorOpen={isDoorOpen}
+          coolingActive={isCoolingActive}
         />
 
         {/* =========================================================================
@@ -637,6 +722,83 @@ export const WarehouseCanvas: React.FC<WarehouseCanvasProps> = ({
           </div>
         </div>
       )}
+
+      {/* 4. Bottom-Left: Real-Time Physics HUD Controls */}
+      <div className="absolute bottom-4 left-4 z-20 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md px-3 py-2 rounded-xl border border-slate-700 shadow-xl text-xs">
+          <div className="flex items-center gap-1.5 pr-2 border-r border-slate-700">
+            <button
+              onClick={handleTogglePlay}
+              disabled={isUpdatingPhysics}
+              className={`p-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
+                isRunning
+                  ? 'bg-amber-600/90 text-white hover:bg-amber-500'
+                  : 'bg-emerald-600/90 text-white hover:bg-emerald-500'
+              }`}
+              title={isRunning ? 'Pause Digital Twin Physics' : 'Resume Simulation Physics'}
+            >
+              {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+              <span className="text-[11px]">{isRunning ? 'Pause' : 'Resume'}</span>
+            </button>
+          </div>
+
+          {/* Time-Scale Speed Multiplier */}
+          <div className="flex items-center gap-1 px-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+              <Gauge className="w-3 h-3 text-blue-400" />
+              Speed:
+            </span>
+            {[0.5, 1.0, 2.0, 5.0].map((spd) => (
+              <button
+                key={spd}
+                disabled={isUpdatingPhysics}
+                onClick={() => handleChangeSpeed(spd)}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                  currentSimSpeed === spd
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                {spd}x
+              </button>
+            ))}
+          </div>
+
+          {/* Bay Shutter Door Physical Toggle */}
+          <div className="pl-2 border-l border-slate-700 flex items-center gap-1.5">
+            <button
+              onClick={handleToggleDoor}
+              disabled={isUpdatingPhysics}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all border ${
+                isDoorOpen
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+              }`}
+              title="Toggle Warehouse Industrial Dock Shutter"
+            >
+              <DoorOpen className={`w-3.5 h-3.5 ${isDoorOpen ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span>Bay Shutter: {isDoorOpen ? 'OPEN' : 'CLOSED'}</span>
+            </button>
+          </div>
+
+          {/* Refrigeration Compressor Toggle */}
+          <div className="pl-1 flex items-center gap-1.5">
+            <button
+              onClick={handleToggleReefer}
+              disabled={isUpdatingPhysics}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all border ${
+                isCoolingActive
+                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/50 hover:bg-blue-500/30'
+                  : 'bg-rose-500/20 text-rose-300 border-rose-500/50 hover:bg-rose-500/30'
+              }`}
+              title="Toggle Primary HVAC Compressor Active State"
+            >
+              <Snowflake className={`w-3.5 h-3.5 ${isCoolingActive ? 'text-blue-400' : 'text-rose-400'}`} />
+              <span>Cooling: {isCoolingActive ? 'RUNNING' : 'FAULT/CUT'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

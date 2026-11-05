@@ -154,6 +154,11 @@ export interface SimulationState {
     name: string;
     description: string;
     ambient_temp_delta: number;
+    door_open?: boolean;
+    reefer_fault?: boolean;
+    truck_speed_kmh?: number;
+    cooling_power_factor?: number;
+    ambient_rh_override?: number;
   };
   ambient_environment: AmbientEnvironment;
   traditional_storage: TraditionalStorageState;

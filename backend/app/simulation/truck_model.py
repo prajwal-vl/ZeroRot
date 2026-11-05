@@ -76,6 +76,22 @@ class RefrigeratedTruckTwin:
         self.wall_area_m2 = 120.0
         self.wall_u_value = 0.28 # Insulated sandwich panel
 
+    @property
+    def mean_cargo_temp_c(self) -> float:
+        return sum(self.zone_temps.values()) / max(len(self.zone_temps), 1)
+
+    @property
+    def cargo_rh_pct(self) -> float:
+        return self.internal_rh_pct
+
+    @property
+    def o2_pct(self) -> float:
+        return self.internal_o2_pct
+
+    @property
+    def co2_ppm(self) -> float:
+        return self.internal_co2_ppm
+
     def step(
         self,
         ambient_temp_c: float = 32.0,
